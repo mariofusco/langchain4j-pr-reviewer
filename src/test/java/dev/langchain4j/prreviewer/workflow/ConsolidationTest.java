@@ -1,6 +1,6 @@
 package dev.langchain4j.prreviewer.workflow;
 
-import static dev.langchain4j.prreviewer.support.StubAgents.raw;
+import static dev.langchain4j.prreviewer.support.TestData.raw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.langchain4j.prreviewer.github.DiffParser;

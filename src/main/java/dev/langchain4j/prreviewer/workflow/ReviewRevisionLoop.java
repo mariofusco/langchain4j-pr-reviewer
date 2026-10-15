@@ -1,7 +1,6 @@
 package dev.langchain4j.prreviewer.workflow;
 
 import dev.langchain4j.agentic.declarative.ExitCondition;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.declarative.LoopAgent;
 import dev.langchain4j.prreviewer.agents.Scorer;
 import dev.langchain4j.prreviewer.hitl.ApplyHumanFeedback;
@@ -19,14 +18,15 @@ import java.util.List;
 public interface ReviewRevisionLoop {
 
     @LoopAgent(name = "reviewRevisionLoop", description = "Debates, scores, writes and seeks approval until approved",
-            typedOutputKey = Keys.ReviewReport.class, maxIterations = 3,
+            outputKey = Keys.REVIEW_REPORT, maxIterations = 3,
             subAgents = {ApplyHumanFeedback.class, DebateGate.class, DebateBudgetGuard.class,
                     ActiveFindingsSelector.class, Scorer.class, VotingGate.class, ScoreCalibrator.class,
+                    VerdictProjection.class, VerdictReasoningProjection.class, LimitationsProjection.class,
                     ReportQualityLoop.class, ApprovalGate.class})
-    ReviewReport revise(@K(Keys.Findings.class) List<Finding> findings);
+    ReviewReport revise(List<Finding> findings);
 
     @ExitCondition(testExitAtLoopEnd = true, description = "the reviewer did not contest the report")
-    static boolean exit(@K(Keys.Approval.class) ApprovalDecision approval) {
+    static boolean exit(ApprovalDecision approval) {
         return approval.decision() != ApprovalDecision.Decision.CONTEST;
     }
 }

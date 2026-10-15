@@ -1,10 +1,9 @@
 package dev.langchain4j.prreviewer.hitl;
 
 import dev.langchain4j.agentic.Agent;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.scope.AgenticScope;
 import dev.langchain4j.prreviewer.keys.Keys;
-import dev.langchain4j.prreviewer.keys.ScopeLists;
+import dev.langchain4j.prreviewer.keys.ScopeState;
 import dev.langchain4j.prreviewer.model.ApprovalDecision;
 import dev.langchain4j.prreviewer.model.Finding;
 import dev.langchain4j.prreviewer.model.ReviewOptions;
@@ -18,31 +17,30 @@ import java.util.List;
 public class ApplyHumanFeedback {
 
     @Agent(name = "applyHumanFeedback", description = "Applies the human reviewer's contest and drop decisions",
-            typedOutputKey = Keys.Findings.class)
-    public static List<Finding> apply(AgenticScope scope,
-                                      @K(Keys.Findings.class) List<Finding> findings,
-                                      @K(Keys.Options.class) ReviewOptions options) {
-        ApprovalDecision approval = scope.readState(Keys.Approval.class);
+            outputKey = Keys.FINDINGS)
+    public static List<Finding> apply(AgenticScope scope, List<Finding> findings, ReviewOptions options) {
+        ApprovalDecision approval = ScopeState.read(scope, Keys.APPROVAL);
         if (approval == null || approval.decision() != ApprovalDecision.Decision.CONTEST) {
             return findings;
         }
-        int round = scope.readState(Keys.RevisionRound.class) + 1;
+        int round = ScopeState.<Integer>read(scope, Keys.REVISION_ROUND) + 1;
         List<Finding> updated = HumanFeedback.applyDrops(findings, approval);
         List<Finding> contested = HumanFeedback.contested(updated, approval, options.maxDebates());
         if (contested.size() < approval.contestedFindingIds().size()) {
-            ScopeLists.append(scope, Keys.Limitations.class, "Only " + contested.size() + " of the "
+            ScopeState.append(scope, Keys.LIMITATIONS, "Only " + contested.size() + " of the "
                     + approval.contestedFindingIds().size() + " contested findings were debated (--max-debates "
                     + options.maxDebates() + ").");
         }
-        scope.writeState(Keys.ContestedFindings.class, contested);
+        scope.writeState(Keys.CONTESTED_FINDINGS, contested);
 
-        String guidance = scope.readState(Keys.ReviewerGuidance.class);
+        String guidance = ScopeState.read(scope, Keys.REVIEWER_GUIDANCE);
         String note = HumanFeedback.guidanceNote(approval, round);
-        scope.writeState(Keys.ReviewerGuidance.class, guidance.isBlank() ? note : guidance + "\n" + note);
-        scope.writeState(Keys.RevisionRound.class, round);
-        scope.writeState(Keys.Approval.class, null);
-        scope.writeState(Keys.ReportDraft.class, null);
-        scope.writeState(Keys.ReportCritique.class, null);
+        scope.writeState(Keys.REVIEWER_GUIDANCE, guidance.isBlank() ? note : guidance + "\n" + note);
+        scope.writeState(Keys.REVISION_ROUND, round);
+        scope.writeState(Keys.REPORT_ROUND, 0);
+        ScopeState.reset(scope, Keys.APPROVAL);
+        ScopeState.reset(scope, Keys.REPORT_DRAFT);
+        ScopeState.reset(scope, Keys.REPORT_CRITIQUE);
         return updated;
     }
 }

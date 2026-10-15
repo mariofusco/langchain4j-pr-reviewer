@@ -80,10 +80,9 @@ public final class StdinReviewerConsole implements ReviewerConsole {
                 out.println("Not understood. Known findings: " + ids.stream().sorted().toList());
                 continue;
             }
-            if (decision.get().decision() == ApprovalDecision.Decision.CONTEST
-                    && !decision.get().contestedFindingIds().isEmpty() && !debatesAffordable) {
-                out.printf(Locale.ROOT, "The cost cap of $%.2f is reached ($%.2f spent): findings can no longer be "
-                        + "debated. Use drop or edit instead.%n", capUsd, spentUsd);
+            Optional<String> refusal = ApprovalRules.refusal(decision.get(), debatesAffordable, spentUsd, capUsd);
+            if (refusal.isPresent()) {
+                out.println(refusal.get());
                 continue;
             }
             return decision.get();

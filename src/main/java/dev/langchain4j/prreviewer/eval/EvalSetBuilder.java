@@ -3,11 +3,11 @@ package dev.langchain4j.prreviewer.eval;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import dev.langchain4j.mcp.client.McpClient;
 import dev.langchain4j.prreviewer.github.GitHubGateway;
 import dev.langchain4j.prreviewer.github.GitHubMcp;
 import dev.langchain4j.prreviewer.github.PullRequestReader;
 import dev.langchain4j.prreviewer.model.Verdict;
+import jakarta.inject.Inject;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -33,7 +32,7 @@ import picocli.CommandLine.Option;
  * </ul>
  * Outcomes reflect the maintainers' priorities as well as code quality, so the labels are a floor, not ground truth.
  */
-@Command(name = "build-eval-set", mixinStandardHelpOptions = true,
+@Command(name = "build-set", mixinStandardHelpOptions = true,
         description = "Builds the eval set from closed pull requests of public Java repositories")
 public class EvalSetBuilder implements Callable<Integer> {
 
@@ -57,20 +56,17 @@ public class EvalSetBuilder implements Callable<Integer> {
     @Option(names = "--out", defaultValue = "eval/eval-set.json")
     Path out;
 
-    public static void main(String[] args) {
-        System.exit(new CommandLine(new EvalSetBuilder()).execute(args));
-    }
+    @Inject
+    GitHubMcp gitHubMcp;
 
     @Override
     public Integer call() throws Exception {
         List<EvalCase> cases = new ArrayList<>();
-        try (McpClient client = GitHubMcp.client(GitHubMcp.Transport.LOCAL, GitHubMcp.resolveToken())) {
-            GitHubGateway github = GitHubMcp.gateway(client);
-            for (String repo : repos) {
-                List<EvalCase> selected = selectFrom(github, repo);
-                System.out.printf(Locale.ROOT, "%s: %d cases%n", repo, selected.size());
-                cases.addAll(selected);
-            }
+        GitHubGateway github = gitHubMcp.gateway();
+        for (String repo : repos) {
+            List<EvalCase> selected = selectFrom(github, repo);
+            System.out.printf(Locale.ROOT, "%s: %d cases%n", repo, selected.size());
+            cases.addAll(selected);
         }
         Files.createDirectories(out.toAbsolutePath().getParent());
         JSON.writeValue(out.toFile(), cases);

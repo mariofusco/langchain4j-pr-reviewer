@@ -1,17 +1,19 @@
 package dev.langchain4j.prreviewer.workflow;
 
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.declarative.PlannerAgent;
 import dev.langchain4j.agentic.declarative.PlannerSupplier;
 import dev.langchain4j.agentic.patterns.decisionrouter.DecisionRouterPlanner;
 import dev.langchain4j.agentic.planner.Planner;
-import dev.langchain4j.prreviewer.AppContext;
 import dev.langchain4j.prreviewer.agents.CorrectnessReviewer;
 import dev.langchain4j.prreviewer.agents.DesignReviewer;
 import dev.langchain4j.prreviewer.agents.DocsApiReviewer;
 import dev.langchain4j.prreviewer.agents.SecurityReviewer;
 import dev.langchain4j.prreviewer.agents.TestReviewer;
+import dev.langchain4j.prreviewer.app.ActiveReview;
+import dev.langchain4j.prreviewer.config.ReviewDefaults;
 import dev.langchain4j.prreviewer.keys.Keys;
+import dev.langchain4j.prreviewer.model.ReviewOptions;
+import dev.langchain4j.prreviewer.models.DecisionModels;
 import java.util.Map;
 
 /**
@@ -23,14 +25,17 @@ import java.util.Map;
 public interface ReviewPanel {
 
     @PlannerAgent(name = "reviewPanel", description = "Selects the relevant reviewers and runs them in parallel",
-            typedOutputKey = Keys.PanelOutputs.class,
+            outputKey = Keys.PANEL_OUTPUTS,
             subAgents = {CorrectnessReviewer.class, SecurityReviewer.class, DesignReviewer.class, TestReviewer.class,
                     DocsApiReviewer.class})
-    Map<String, Object> review(@K(Keys.RoutingInput.class) Map<String, Object> routingInput);
+    Map<String, Object> review(Map<String, Object> routingInput);
 
+    /** Called once per review, with that review's decision model and threshold; at build time, with the defaults. */
     @PlannerSupplier
     static Planner planner() {
-        AppContext context = AppContext.get();
-        return new DecisionRouterPlanner(context.decisionModel(), context.options().routerThreshold());
+        ReviewOptions options = ActiveReview.get().current()
+                .map(run -> run.request().options())
+                .orElseGet(() -> ReviewDefaults.get().options());
+        return new DecisionRouterPlanner(DecisionModels.get().model(options.decisionModel()), options.routerThreshold());
     }
 }

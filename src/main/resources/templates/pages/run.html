@@ -1,0 +1,15 @@
+{#include layout}
+{#title}Review of {page.run.pr}{/title}
+<section class="card">
+  <h1>{page.run.pr}</h1>
+  <p class="muted">{page.run.request.mode} mode · {page.run.request.options.provider} models · {page.run.request.options.decisionModel} router · cap ${page.run.request.options.maxCostUsd}</p>
+  <div hx-ext="sse" sse-connect="/reviews/{page.run.id}/events?from={page.run.rows.size}" sse-close="done">
+    <div id="status" hx-get="/reviews/{page.run.id}/status" hx-trigger="sse:status">{#include pages/status run=page.run /}</div>
+    <div id="interaction" hx-get="/reviews/{page.run.id}/interaction" hx-trigger="sse:interaction">{#include pages/interaction interaction=page.interaction /}</div>
+    <table class="progress">
+      <thead><tr><th></th><th>Agent</th><th>Model</th><th class="num">Time</th><th class="num">Cost so far</th></tr></thead>
+      <tbody sse-swap="progress" hx-swap="beforeend">{#for row in page.run.rows}{#include pages/progressRow row=row /}{/for}</tbody>
+    </table>
+  </div>
+</section>
+{/include}

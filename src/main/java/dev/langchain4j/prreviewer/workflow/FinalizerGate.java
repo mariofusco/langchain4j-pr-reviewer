@@ -2,7 +2,6 @@ package dev.langchain4j.prreviewer.workflow;
 
 import dev.langchain4j.agentic.declarative.ActivationCondition;
 import dev.langchain4j.agentic.declarative.ConditionalAgent;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.prreviewer.keys.Keys;
 import dev.langchain4j.prreviewer.model.ApprovalDecision;
 import dev.langchain4j.prreviewer.model.ReviewReport;
@@ -14,11 +13,11 @@ import dev.langchain4j.prreviewer.model.ReviewReport;
 public interface FinalizerGate {
 
     @ConditionalAgent(name = "finalizerGate", description = "Applies the human reviewer's edits",
-            typedOutputKey = Keys.ReviewReport.class, subAgents = Finalization.class)
-    ReviewReport finalizeReport(@K(Keys.Approval.class) ApprovalDecision approval);
+            outputKey = Keys.REVIEW_REPORT, subAgents = Finalization.class)
+    ReviewReport finalizeReport(ApprovalDecision approval);
 
     @ActivationCondition(value = Finalization.class, description = "edits requested, or contest after the last round")
-    static boolean edits(@K(Keys.Approval.class) ApprovalDecision approval) {
+    static boolean edits(ApprovalDecision approval) {
         return approval.decision() == ApprovalDecision.Decision.CONTEST
                 || (approval.decision() == ApprovalDecision.Decision.EDIT && approval.hasNotes());
     }

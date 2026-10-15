@@ -1,10 +1,10 @@
 package dev.langchain4j.prreviewer.workflow;
 
 import dev.langchain4j.agentic.Agent;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.scope.AgenticScope;
-import dev.langchain4j.prreviewer.AppContext;
+import dev.langchain4j.prreviewer.app.ActiveReview;
 import dev.langchain4j.prreviewer.keys.Keys;
+import dev.langchain4j.prreviewer.keys.ScopeState;
 import dev.langchain4j.prreviewer.model.Finding;
 import dev.langchain4j.prreviewer.model.PullRequest;
 import dev.langchain4j.prreviewer.model.ReportDraft;
@@ -17,43 +17,46 @@ import dev.langchain4j.prreviewer.observability.CostLedger;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /** Non-AI agent: renders the report from the writer's prose and the review data. */
 public class ReportAssembler {
 
     @Agent(name = "reportAssembler", description = "Renders the report from the prose and the review data",
-            typedOutputKey = Keys.ReviewReport.class)
+            outputKey = Keys.REVIEW_REPORT)
     public static ReviewReport assemble(AgenticScope scope,
-                                        @K(Keys.PullRequest.class) PullRequest pr,
-                                        @K(Keys.ReportDraft.class) ReportDraft draft,
-                                        @K(Keys.ActiveFindings.class) List<Finding> findings,
-                                        @K(Keys.Scores.class) Scores scores,
-                                        @K(Keys.Verdict.class) Verdict verdict,
-                                        @K(Keys.VerdictReasoning.class) String verdictReasoning) {
-        return ReportRenderer.render(pr, draft, findings, scores, verdict, verdictReasoning,
-                limitations(scope, draft), runInfo(scope));
+                                        PullRequest pullRequest,
+                                        ReportDraft reportDraft,
+                                        List<Finding> activeFindings,
+                                        Scores scores,
+                                        Verdict verdict,
+                                        String verdictReasoning) {
+        // counts the rounds of the report quality loop, whose exit condition lowers the bar after the first one
+        scope.writeState(Keys.REPORT_ROUND, ScopeState.<Integer>read(scope, Keys.REPORT_ROUND) + 1);
+        return ReportRenderer.render(pullRequest, reportDraft, activeFindings, scores, verdict, verdictReasoning,
+                limitations(scope, reportDraft), runInfo(scope));
     }
 
     /** Assembles the report from the current content of the scope. */
     static ReviewReport assemble(AgenticScope scope) {
         return assemble(scope,
-                scope.readState(Keys.PullRequest.class),
-                scope.readState(Keys.ReportDraft.class),
-                scope.readState(Keys.ActiveFindings.class),
-                scope.readState(Keys.Scores.class),
-                scope.readState(Keys.Verdict.class),
-                scope.readState(Keys.VerdictReasoning.class));
+                ScopeState.read(scope, Keys.PULL_REQUEST),
+                ScopeState.read(scope, Keys.REPORT_DRAFT),
+                ScopeState.read(scope, Keys.ACTIVE_FINDINGS),
+                ScopeState.read(scope, Keys.SCORES),
+                ScopeState.read(scope, Keys.VERDICT),
+                ScopeState.read(scope, Keys.VERDICT_REASONING));
     }
 
     static List<String> limitations(AgenticScope scope, ReportDraft draft) {
-        Set<String> limitations = new LinkedHashSet<>(scope.readState(Keys.Limitations.class));
-        List<String> degraded = scope.readState(Keys.DegradedAgents.class);
+        Set<String> limitations = new LinkedHashSet<>(ScopeState.read(scope, Keys.LIMITATIONS));
+        List<String> degraded = ScopeState.read(scope, Keys.DEGRADED_AGENTS);
         if (!degraded.isEmpty()) {
             limitations.add("These steps failed and were skipped or replaced by a fallback: "
                     + String.join(", ", degraded) + ".");
         }
-        List<String> capEvents = AppContext.get().ledger().capEvents();
+        List<String> capEvents = ActiveReview.get().ledger().capEvents();
         if (!capEvents.isEmpty()) {
             limitations.add("Skipped because the cost cap was reached: " + String.join("; ", capEvents) + ".");
         }
@@ -64,15 +67,15 @@ public class ReportAssembler {
     }
 
     static RunInfo runInfo(AgenticScope scope) {
-        var panel = scope.readState(Keys.PanelOutputs.class);
+        Map<String, Object> panel = ScopeState.read(scope, Keys.PANEL_OUTPUTS);
         List<String> reviewers = new ArrayList<>(panel.keySet());
-        reviewers.addAll(ReviewerCoverage.floorReviewers(panel, scope.readState(Keys.DiffStats.class)));
-        if (!scope.readState(Keys.ChunkFindings.class).isEmpty()) {
+        reviewers.addAll(ReviewerCoverage.floorReviewers(panel, ScopeState.read(scope, Keys.DIFF_STATS)));
+        if (!ScopeState.<List<?>>read(scope, Keys.CHUNK_FINDINGS).isEmpty()) {
             reviewers.add("chunkReviewer");
         }
-        CostLedger ledger = AppContext.get().ledger();
-        ReviewMode mode = scope.readState(Keys.Mode.class);
+        CostLedger ledger = ActiveReview.get().ledger();
+        ReviewMode mode = ScopeState.read(scope, Keys.MODE);
         return new RunInfo(mode, List.copyOf(reviewers), ledger.modelsByAgent(), ledger.total(),
-                scope.readState(Keys.RevisionRound.class));
+                ScopeState.read(scope, Keys.REVISION_ROUND));
     }
 }

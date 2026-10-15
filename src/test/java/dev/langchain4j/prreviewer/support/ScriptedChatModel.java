@@ -12,16 +12,20 @@ import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.output.TokenUsage;
+import dev.langchain4j.prreviewer.observability.AgentAttribution;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A chat model answering each agent with a canned response, chosen by the "## Task: name" line its prompt starts with.
+ * A chat model answering each agent with the scenario's canned response, chosen by the "## Task: name" line its
+ * prompt starts with, or by the running agent's name when the scenario has one. A response may be a function of the
+ * call, and a {@link RuntimeException} is thrown.
  * It declares structured output support like the Anthropic models, so the real prompt templates, response formats and
  * output parsers are all exercised.
  */
@@ -31,19 +35,16 @@ public final class ScriptedChatModel implements ChatModel {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /** One captured call. */
-    public record Call(String task, String modelName, String system, String user, ChatRequest request) {}
+    public record Call(String agent, String task, String modelName, String system, String user, ChatRequest request) {}
 
     private final String modelName;
-    private final Map<String, Object> responses;
+    private final TestScenario scenario;
     private final List<ChatModelListener> listeners;
-    private final List<Call> calls;
 
-    public ScriptedChatModel(String modelName, Map<String, Object> responses, List<ChatModelListener> listeners,
-                             List<Call> sharedCalls) {
+    public ScriptedChatModel(String modelName, TestScenario scenario, List<ChatModelListener> listeners) {
         this.modelName = modelName;
-        this.responses = responses;
+        this.scenario = scenario;
         this.listeners = listeners;
-        this.calls = sharedCalls;
     }
 
     public static List<Call> newCallLog() {
@@ -51,6 +52,7 @@ public final class ScriptedChatModel implements ChatModel {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public ChatResponse doChat(ChatRequest request) {
         String system = text(request.messages(), SystemMessage.class);
         String user = text(request.messages(), UserMessage.class);
@@ -59,8 +61,19 @@ public final class ScriptedChatModel implements ChatModel {
             throw new AssertionError("No task line in the prompt: " + user);
         }
         String task = matcher.group(1);
-        calls.add(new Call(task, modelName, system, user, request));
-        Object response = responses.get(task);
+        Call call = new Call(AgentAttribution.current(), task, modelName, system, user, request);
+        scenario.calls().add(call);
+        if (scenario.failingTasks().contains(task)) {
+            throw new IllegalStateException("Scripted failure of " + task);
+        }
+        // the agent's own response first: fallback reviewers share the prompt, so the task, of the main ones
+        Object response = scenario.responses().getOrDefault(call.agent(), scenario.responses().get(task));
+        if (response instanceof Function<?, ?> function) {
+            response = ((Function<Call, Object>) function).apply(call);
+        }
+        if (response instanceof RuntimeException failure) {
+            throw failure;
+        }
         if (response == null) {
             throw new AssertionError("No scripted response for " + task);
         }

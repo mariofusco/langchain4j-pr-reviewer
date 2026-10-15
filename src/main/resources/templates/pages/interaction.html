@@ -1,0 +1,50 @@
+{#if interaction.kind == 'clarification'}
+<div class="attention">
+  <h2>Questions before the review</h2>
+  {#if interaction.error}<p class="error">{interaction.error}</p>{/if}
+  <form method="post" action="/reviews/{interaction.runId}/clarifications">
+    <input type="hidden" name="{inject:csrf.parameterName}" value="{inject:csrf.token}">
+    <ol>{#for q in interaction.questions}<li>{q}</li>{/for}</ol>
+    <label class="wide">Your answers, and any focus areas
+      <textarea name="guidance" rows="5"></textarea>
+    </label>
+    <button type="submit">Send to the reviewers</button>
+  </form>
+</div>
+{#else if interaction.kind == 'approval'}
+<div class="attention">
+  <h2>Your decision</h2>
+  <p class="muted">Spent ${interaction.spent} of the ${interaction.cap} soft cap.{#if !interaction.debatesAffordable} The cap is reached: findings can no longer be debated, only dropped.{/if}</p>
+  {#if interaction.error}<p class="error">{interaction.error}</p>{/if}
+  <form method="post" action="/reviews/{interaction.runId}/approval">
+    <input type="hidden" name="{inject:csrf.parameterName}" value="{inject:csrf.token}">
+    {#if interaction.findings}
+    <table class="findings">
+      <thead><tr><th>Contest</th><th>Drop</th><th>Finding</th></tr></thead>
+      <tbody>
+      {#for f in interaction.findings}
+        <tr>
+          <td><input type="checkbox" name="contest" value="{f.id}"{#if !interaction.debatesAffordable} disabled{/if}></td>
+          <td><input type="checkbox" name="drop" value="{f.id}"></td>
+          <td><b>{f.id}</b> [{f.severity}][{f.category}] {f.title} <span class="muted">{f.location} · {f.verification}</span></td>
+        </tr>
+      {/for}
+      </tbody>
+    </table>
+    {/if}
+    <label class="wide">Notes
+      <textarea name="notes" rows="3" placeholder="Why you contest a finding, or the edits to make to the report"></textarea>
+    </label>
+    <div class="actions">
+      <button name="action" value="approve">Approve</button>
+      <button name="action" value="edit" class="secondary">Edit with the notes</button>
+      <button name="action" value="contest" class="secondary">Contest or drop the selected</button>
+      <button name="action" value="reject" class="danger">Reject</button>
+    </div>
+  </form>
+  <details open>
+    <summary>The report</summary>
+    <article class="report">{interaction.reportHtml.raw}</article>
+  </details>
+</div>
+{/if}

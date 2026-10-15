@@ -1,12 +1,15 @@
 package dev.langchain4j.prreviewer.observability;
 
 import dev.langchain4j.model.anthropic.AnthropicTokenUsage;
-import dev.langchain4j.model.openai.OpenAiTokenUsage;
 import dev.langchain4j.model.chat.listener.ChatModelErrorContext;
 import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.chat.listener.ChatModelRequestContext;
 import dev.langchain4j.model.chat.listener.ChatModelResponseContext;
+import dev.langchain4j.model.openai.OpenAiTokenUsage;
 import dev.langchain4j.model.output.TokenUsage;
+import dev.langchain4j.prreviewer.app.ActiveReview;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,17 +18,15 @@ import org.slf4j.LoggerFactory;
  * Records the usage of every model call, including each round trip of tool-using agents, in the ledger, and logs
  * one JSON line per call on the {@code dev.langchain4j.prreviewer.usage} logger.
  */
-public final class CostTrackingListener implements ChatModelListener {
+@ApplicationScoped
+public class CostTrackingListener implements ChatModelListener {
 
     private static final Logger USAGE = LoggerFactory.getLogger("dev.langchain4j.prreviewer.usage");
     private static final String START = "prreviewer.start";
     private static final String AGENT = "prreviewer.agent";
 
-    private final CostLedger ledger;
-
-    public CostTrackingListener(CostLedger ledger) {
-        this.ledger = ledger;
-    }
+    @Inject
+    ActiveReview activeReview;
 
     @Override
     public void onRequest(ChatModelRequestContext context) {
@@ -52,7 +53,7 @@ public final class CostTrackingListener implements ChatModelListener {
             cacheRead = value(openAi.inputTokensDetails().cachedTokens());
             input = Math.max(0, input - cacheRead);
         }
-        ledger.record(agent, model, input, output, cacheRead, cacheWrite);
+        activeReview.ledger().record(agent, model, input, output, cacheRead, cacheWrite);
         if (USAGE.isInfoEnabled()) {
             USAGE.info(String.format(Locale.ROOT,
                     "{\"agent\":\"%s\",\"model\":\"%s\",\"inputTokens\":%d,\"outputTokens\":%d,\"cacheReadTokens\":%d,"

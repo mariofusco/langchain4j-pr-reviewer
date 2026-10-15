@@ -2,11 +2,11 @@
 
 Triage this pull request.
 
-{{PrOverview}}
+{{prOverview}}
 
 The reviewed diff:
 <diff>
-{{DiffText}}
+{{diffText}}
 </diff>
 
 Return:

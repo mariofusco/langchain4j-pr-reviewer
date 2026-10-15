@@ -94,7 +94,7 @@ text{fill:#e6edf3}
 <text x="622" y="323" class="p">@ParallelMapperAgent</text>
 <rect x="624" y="332" width="120" height="26" rx="4" class="box"/>
 <text x="684" y="348.5" class="n" text-anchor="middle">chunkReviewer</text>
-<text x="752" y="349" class="s">× DiffChunks</text>
+<text x="752" y="349" class="s">× diffChunks</text>
 <polyline points="720,226 720,250" class="e" marker-end="url(#a)"/>
 <rect x="180" y="404" width="660" height="32" rx="4" class="box code"/>
 <text x="510" y="423.5" class="n" text-anchor="middle">findingsConsolidator</text>

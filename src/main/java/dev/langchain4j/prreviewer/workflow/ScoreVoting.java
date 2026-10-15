@@ -1,6 +1,5 @@
 package dev.langchain4j.prreviewer.workflow;
 
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.declarative.PlannerAgent;
 import dev.langchain4j.agentic.declarative.PlannerSupplier;
 import dev.langchain4j.agentic.patterns.voting.VotingPlanner;
@@ -18,9 +17,9 @@ import java.util.List;
 public interface ScoreVoting {
 
     @PlannerAgent(name = "scoreVoting", description = "Aggregates independent score cards for a borderline review",
-            typedOutputKey = Keys.ScoreCard.class,
+            outputKey = Keys.SCORE_CARD,
             subAgents = {NeutralScorer.class, SkepticalScorer.class, LenientScorer.class})
-    ScoreCard vote(@K(Keys.ActiveFindings.class) List<Finding> findings);
+    ScoreCard vote(List<Finding> activeFindings);
 
     @PlannerSupplier
     static Planner planner() {

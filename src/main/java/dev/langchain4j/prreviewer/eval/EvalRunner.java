@@ -3,24 +3,23 @@ package dev.langchain4j.prreviewer.eval;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import dev.langchain4j.mcp.client.McpClient;
-import dev.langchain4j.prreviewer.AppContext;
 import dev.langchain4j.prreviewer.PrReviewSystem;
-import dev.langchain4j.prreviewer.PrReviewSystems;
-import dev.langchain4j.prreviewer.github.GitHubMcp;
+import dev.langchain4j.prreviewer.app.ReviewOutcome;
+import dev.langchain4j.prreviewer.app.ReviewRequest;
+import dev.langchain4j.prreviewer.app.ReviewService;
+import dev.langchain4j.prreviewer.github.PrUrl;
 import dev.langchain4j.prreviewer.keys.Keys;
+import dev.langchain4j.prreviewer.keys.ScopeState;
+import dev.langchain4j.prreviewer.model.DecisionProvider;
 import dev.langchain4j.prreviewer.model.Finding;
 import dev.langchain4j.prreviewer.model.MetricScore;
+import dev.langchain4j.prreviewer.model.ModelProvider;
 import dev.langchain4j.prreviewer.model.ModelTier;
 import dev.langchain4j.prreviewer.model.ReviewMode;
 import dev.langchain4j.prreviewer.model.ReviewOptions;
 import dev.langchain4j.prreviewer.model.ReviewReport;
 import dev.langchain4j.prreviewer.model.Verdict;
-import dev.langchain4j.prreviewer.models.ChatModelProvider;
-import dev.langchain4j.prreviewer.models.DecisionModels;
-import dev.langchain4j.prreviewer.observability.CostLedger;
-import dev.langchain4j.prreviewer.observability.CostTrackingListener;
-import dev.langchain4j.prreviewer.observability.DecisionCostListener;
+import jakarta.inject.Inject;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -30,7 +29,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -39,7 +37,7 @@ import picocli.CommandLine.Option;
  * must-find recall, unmatched findings, score stability, cost and latency. Every run calls the models: check the
  * cost of one case before running the whole set.
  */
-@Command(name = "run-eval", mixinStandardHelpOptions = true, description = "Scores the reviewer against the eval set")
+@Command(name = "run", mixinStandardHelpOptions = true, description = "Scores the reviewer against the eval set")
 public class EvalRunner implements Callable<Integer> {
 
     private static final ObjectMapper JSON = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
@@ -59,27 +57,30 @@ public class EvalRunner implements Callable<Integer> {
     @Option(names = "--router-threshold", description = "Default: 0.2 for LOCAL, 0.5 otherwise")
     Double routerThreshold;
 
-    @Option(names = "--max-cost", defaultValue = "2.0", description = "Soft cost cap per review")
-    double maxCost;
+    @Option(names = "--max-cost", description = "Soft cost cap per review (default: ${DEFAULT-VALUE})")
+    double maxCost = 2.0;
 
-    @Option(names = "--decision-model", defaultValue = "LOCAL")
-    DecisionModels.Provider decisionModel;
+    @Option(names = "--decision-model", description = "LOCAL, TYPESAFE or OPENROUTER (default: ${DEFAULT-VALUE})")
+    DecisionProvider decisionModel = DecisionProvider.LOCAL;
 
-    @Option(names = "--provider", defaultValue = "ANTHROPIC", description = "ANTHROPIC or OPENAI")
-    ChatModelProvider provider;
+    @Option(names = "--provider", description = "ANTHROPIC or OPENAI (default: ${DEFAULT-VALUE})")
+    ModelProvider provider = ModelProvider.ANTHROPIC;
 
     @Option(names = "--out", defaultValue = "eval/results")
     Path out;
 
-    public static void main(String[] args) {
-        System.exit(new CommandLine(new EvalRunner()).setCaseInsensitiveEnumValuesAllowed(true).execute(args));
-    }
+    @Inject
+    ReviewService reviews;
+
+    @Inject
+    PrReviewSystem system;
 
     @Override
     public Integer call() throws Exception {
         List<EvalCase> cases = JSON.readValue(eval.toFile(), new TypeReference<List<EvalCase>>() {});
-        double threshold = routerThreshold != null ? routerThreshold : DecisionModels.defaultRouterThreshold(decisionModel);
-        ReviewOptions options = new ReviewOptions(false, 50, 60_000, modelTier, 3, threshold, maxCost, 4);
+        double threshold = routerThreshold != null ? routerThreshold : decisionModel.defaultRouterThreshold();
+        ReviewOptions options = new ReviewOptions(false, 50, 60_000, modelTier, 3, threshold, maxCost, 4, provider,
+                decisionModel);
         Map<String, Object> results = new LinkedHashMap<>();
         List<Map<String, Object>> perCase = new ArrayList<>();
         List<Double> agreement = new ArrayList<>();
@@ -91,55 +92,53 @@ public class EvalRunner implements Callable<Integer> {
 
         Files.createDirectories(out);
         Path file = out.resolve("results-" + Instant.now().toString().replace(':', '-') + ".json");
-        try (McpClient client = GitHubMcp.client(GitHubMcp.Transport.LOCAL, GitHubMcp.resolveToken())) {
-            for (EvalCase c : cases.subList(0, Math.min(limit, cases.size()))) {
-                List<EvalMetrics.Run> caseRuns = new ArrayList<>();
-                List<String> failures = new ArrayList<>();
-                for (int i = 0; i < runs; i++) {
-                    try {
-                        caseRuns.add(runOnce(client, c, options));
-                    } catch (RuntimeException e) {
-                        failures.add(String.valueOf(e.getMessage()));
-                        System.err.printf(Locale.ROOT, "%s run %d failed: %s%n", c.pr(), i + 1, e.getMessage());
-                    }
+        for (EvalCase c : cases.subList(0, Math.min(limit, cases.size()))) {
+            List<EvalMetrics.Run> caseRuns = new ArrayList<>();
+            List<String> failures = new ArrayList<>();
+            for (int i = 0; i < runs; i++) {
+                try {
+                    caseRuns.add(runOnce(c, options));
+                } catch (RuntimeException e) {
+                    failures.add(String.valueOf(e.getMessage()));
+                    System.err.printf(Locale.ROOT, "%s run %d failed: %s%n", c.pr(), i + 1, e.getMessage());
                 }
-                if (caseRuns.isEmpty()) {
-                    Map<String, Object> failed = new LinkedHashMap<>();
-                    failed.put("pr", c.pr());
-                    failed.put("expected", c.expectedVerdict());
-                    failed.put("failures", failures);
-                    perCase.add(failed);
-                    results.put("cases", perCase);
-                    JSON.writeValue(file.toFile(), results);
-                    continue;
-                }
-                Verdict majority = EvalMetrics.majorityVerdict(caseRuns);
-                agreement.add(majority == c.expectedVerdict() ? 1.0 : 0.0);
-                caseRuns.forEach(r -> {
-                    recalls.add(EvalMetrics.recall(c, r));
-                    unmatched.add(EvalMetrics.unmatchedRate(c, r));
-                    costs.add(r.costUsd());
-                    seconds.add(r.seconds());
-                });
-                double sd = EvalMetrics.standardDeviation(caseRuns.stream().map(EvalMetrics.Run::overall).toList());
-                stability.add(sd);
-                Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("pr", c.pr());
-                entry.put("expected", c.expectedVerdict());
-                entry.put("majority", majority);
-                entry.put("runs", caseRuns.stream().map(r -> Map.of("verdict", r.verdict(), "overall", r.overall(),
-                        "scores", r.scores(), "findings", r.findings().size(), "costUsd", r.costUsd(),
-                        "seconds", r.seconds(), "recall", String.valueOf(EvalMetrics.recall(c, r)))).toList());
-                entry.put("overallStdDev", sd);
-                if (!failures.isEmpty()) {
-                    entry.put("failures", failures);
-                }
-                perCase.add(entry);
-                results.put("cases", perCase);
-                JSON.writeValue(file.toFile(), results);   // partial results survive a later failure
-                System.out.printf(Locale.ROOT, "%-40s expected %-16s got %-16s sd %.2f%n", c.pr(), c.expectedVerdict(),
-                        majority, sd);
             }
+            if (caseRuns.isEmpty()) {
+                Map<String, Object> failed = new LinkedHashMap<>();
+                failed.put("pr", c.pr());
+                failed.put("expected", c.expectedVerdict());
+                failed.put("failures", failures);
+                perCase.add(failed);
+                results.put("cases", perCase);
+                JSON.writeValue(file.toFile(), results);
+                continue;
+            }
+            Verdict majority = EvalMetrics.majorityVerdict(caseRuns);
+            agreement.add(majority == c.expectedVerdict() ? 1.0 : 0.0);
+            caseRuns.forEach(r -> {
+                recalls.add(EvalMetrics.recall(c, r));
+                unmatched.add(EvalMetrics.unmatchedRate(c, r));
+                costs.add(r.costUsd());
+                seconds.add(r.seconds());
+            });
+            double sd = EvalMetrics.standardDeviation(caseRuns.stream().map(EvalMetrics.Run::overall).toList());
+            stability.add(sd);
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("pr", c.pr());
+            entry.put("expected", c.expectedVerdict());
+            entry.put("majority", majority);
+            entry.put("runs", caseRuns.stream().map(r -> Map.of("verdict", r.verdict(), "overall", r.overall(),
+                    "scores", r.scores(), "findings", r.findings().size(), "costUsd", r.costUsd(),
+                    "seconds", r.seconds(), "recall", String.valueOf(EvalMetrics.recall(c, r)))).toList());
+            entry.put("overallStdDev", sd);
+            if (!failures.isEmpty()) {
+                entry.put("failures", failures);
+            }
+            perCase.add(entry);
+            results.put("cases", perCase);
+            JSON.writeValue(file.toFile(), results);   // partial results survive a later failure
+            System.out.printf(Locale.ROOT, "%-40s expected %-16s got %-16s sd %.2f%n", c.pr(), c.expectedVerdict(),
+                    majority, sd);
         }
 
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -162,29 +161,21 @@ public class EvalRunner implements Callable<Integer> {
         return 0;
     }
 
-    private EvalMetrics.Run runOnce(McpClient client, EvalCase c, ReviewOptions options) {
-        CostLedger ledger = new CostLedger();
-        AppContext.install(AppContext.builder()
-                .github(GitHubMcp.gateway(client))
-                .githubTools(GitHubMcp.readTools(client))
-                .models(provider.fromEnvironment(List.of(new CostTrackingListener(ledger))))
-                .decisionModel(DecisionModels.create(decisionModel, new DecisionCostListener(ledger)))
-                .ledger(ledger)
-                .options(options)
-                .outputDir(out.resolve("reports"))
-                .build());
-        PrReviewSystem system = PrReviewSystems.create();
+    private EvalMetrics.Run runOnce(EvalCase c, ReviewOptions options) {
         long start = System.nanoTime();
-        ReviewReport report = system.review(c.pr(), ReviewMode.AUTO, options);
+        ReviewOutcome outcome = reviews.review(new ReviewRequest(PrUrl.parse(c.pr()), ReviewMode.AUTO, options,
+                out.resolve("reports")), null, event -> {});
         double elapsed = (System.nanoTime() - start) / 1e9;
-        List<Finding> findings = system.agentMonitor().successfulExecutions().get(0).agenticScope()
-                .readState(Keys.ActiveFindings.class);
+        ReviewReport report = outcome.report();
+        List<Finding> findings = ScopeState.read(system.agentMonitor().successfulExecutions().get(0).agenticScope(),
+                Keys.ACTIVE_FINDINGS);
         Map<String, Double> scores = new LinkedHashMap<>();
         for (MetricScore m : report.scores().metrics()) {
             if (m.applicable()) {
                 scores.put(m.metric().name(), m.score());
             }
         }
-        return new EvalMetrics.Run(report.verdict(), report.scores().overall(), scores, findings, ledger.total(), elapsed);
+        return new EvalMetrics.Run(report.verdict(), report.scores().overall(), scores, findings,
+                outcome.ledger().total(), elapsed);
     }
 }

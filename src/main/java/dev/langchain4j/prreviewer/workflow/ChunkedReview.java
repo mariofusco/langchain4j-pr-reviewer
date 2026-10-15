@@ -1,6 +1,5 @@
 package dev.langchain4j.prreviewer.workflow;
 
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.declarative.ParallelExecutor;
 import dev.langchain4j.agentic.declarative.ParallelMapperAgent;
 import dev.langchain4j.prreviewer.agents.ChunkReviewer;
@@ -14,8 +13,8 @@ import java.util.concurrent.Executors;
 public interface ChunkedReview {
 
     @ParallelMapperAgent(name = "chunkedReview", description = "Reviews each chunk of left-out files in parallel",
-            typedOutputKey = Keys.ChunkFindings.class, subAgent = ChunkReviewer.class, itemsProvider = "DiffChunks")
-    List<List<RawFinding>> review(@K(Keys.DiffChunks.class) List<String> chunks);
+            outputKey = Keys.CHUNK_FINDINGS, subAgent = ChunkReviewer.class, itemsProvider = "diffChunks")
+    List<List<RawFinding>> review(List<String> diffChunks);
 
     @ParallelExecutor
     static Executor executor() {

@@ -1,78 +1,41 @@
 package dev.langchain4j.prreviewer.models;
 
 import dev.langchain4j.model.decision.DecisionModel;
-import dev.langchain4j.model.decision.listener.DecisionModelListener;
-import dev.langchain4j.model.openai.OpenAiDecisionModel;
-import dev.langchain4j.model.typesafe.TypeSafeDecisionModel;
-import java.time.Duration;
+import dev.langchain4j.prreviewer.model.DecisionProvider;
+import io.quarkiverse.langchain4j.ModelName;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.Unremovable;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Any;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.ConfigProvider;
 
-/** The decision model behind the reviewer router, speaking the System One API. */
-public final class DecisionModels {
+/**
+ * The decision models behind the reviewer router, configured as named typesafe models: {@code local} (System One API
+ * on a local server, Ollama serving {@code tev1:0.8b} by default), {@code hosted} (TypeSafe) and {@code openrouter}.
+ */
+@ApplicationScoped
+@Unremovable
+public class DecisionModels {
 
-    public enum Provider {
-        /** A local System One server, by default Ollama serving {@code tev1:0.8b}. */
-        LOCAL,
-        /** The hosted TypeSafe API. */
-        TYPESAFE,
-        /** TypeSafe models through OpenRouter. */
-        OPENROUTER,
-        /** The OpenAI Decisions API. */
-        OPENAI
+    @Inject
+    @Any
+    Instance<DecisionModel> models;
+
+    public static DecisionModels get() {
+        return Arc.container().instance(DecisionModels.class).get();
     }
 
-    public static final String LOCAL_BASE_URL = "http://localhost:11434";
-    public static final String LOCAL_MODEL = "tev1:0.8b";
-
-    /**
-     * Default activation threshold of the reviewer router. Measured on five synthetic changes: the hosted models
-     * separate relevant from irrelevant reviewers around 0.5, the small local model peaks around 0.2.
-     */
-    public static double defaultRouterThreshold(Provider provider) {
-        return provider == Provider.LOCAL ? 0.2 : 0.5;
+    public DecisionModel model(DecisionProvider provider) {
+        return models.select(ModelName.Literal.of(provider.configName())).get();
     }
 
-    private DecisionModels() {}
-
-    public static DecisionModel create(Provider provider, DecisionModelListener listener) {
-        if (provider == Provider.OPENAI) {
-            return OpenAiDecisionModel.builder()
-                    .apiKey(required("OPENAI_API_KEY"))
-                    .modelName(env("OPENAI_DECISION_MODEL", "gpt-6-luna"))
-                    .timeout(Duration.ofSeconds(60))
-                    .maxRetries(2)
-                    .listeners(listener)
-                    .build();
-        }
-        TypeSafeDecisionModel.TypeSafeDecisionModelBuilder builder = TypeSafeDecisionModel.builder()
-                .timeout(Duration.ofSeconds(60))
-                .maxRetries(2)
-                .listeners(listener);
-        switch (provider) {
-            case LOCAL -> builder
-                    .baseUrl(env("SYSTEM_ONE_BASE_URL", LOCAL_BASE_URL))
-                    .modelName(env("SYSTEM_ONE_MODEL_NAME", LOCAL_MODEL));
-            case TYPESAFE -> builder
-                    .apiKey(required("TYPESAFE_API_KEY"))
-                    .modelName(env("TYPESAFE_MODEL_NAME", "jev-latest"));
-            case OPENROUTER -> builder
-                    .baseUrl("https://openrouter.ai/api/")
-                    .apiKey(required("OPENROUTER_API_KEY"))
-                    .modelName(env("OPENROUTER_DECISION_MODEL", "typesafe/jev-1.13"));
-            case OPENAI -> throw new IllegalStateException("handled above");
-        }
-        return builder.build();
-    }
-
-    private static String env(String name, String fallback) {
-        String value = System.getenv(name);
-        return value == null || value.isBlank() ? fallback : value;
-    }
-
-    private static String required(String name) {
-        String value = System.getenv(name);
-        if (value == null || value.isBlank()) {
-            throw new IllegalStateException(name + " is not set");
-        }
-        return value;
+    /** Whether the decision model's key is set, when it needs one. */
+    public static boolean available(DecisionProvider provider) {
+        return provider.apiKeyVariable() == null
+                || ConfigProvider.getConfig().getOptionalValue(provider.apiKeyVariable(), String.class)
+                        .filter(key -> !key.isBlank())
+                        .isPresent();
     }
 }

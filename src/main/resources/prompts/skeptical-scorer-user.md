@@ -2,16 +2,16 @@
 
 Score this pull request independently, as a skeptical maintainer who will own this code for years and pays for every defect and every unnecessary line. Be strict, but stay within the rubric and the evidence.
 
-{{PrOverview}}
+{{prOverview}}
 
 Triage:
-{{PrSummary}}
+{{prSummary}}
 
 Usefulness assessment:
-{{Usefulness}}
+{{usefulness}}
 
 Findings still standing:
-{{ActiveFindings}}
+{{activeFindings}}
 
 Guidance from the human reviewer, if any:
-{{ReviewerGuidance}}
+{{reviewerGuidance}}

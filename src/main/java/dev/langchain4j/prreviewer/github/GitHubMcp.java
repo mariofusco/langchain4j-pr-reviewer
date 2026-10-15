@@ -4,30 +4,37 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.mcp.McpToolProvider;
-import dev.langchain4j.mcp.client.DefaultMcpClient;
 import dev.langchain4j.mcp.client.McpClient;
-import dev.langchain4j.mcp.client.transport.McpTransport;
-import dev.langchain4j.mcp.client.transport.http.StreamableHttpMcpTransport;
-import dev.langchain4j.mcp.client.transport.stdio.StdioMcpTransport;
+import dev.langchain4j.prreviewer.config.ReviewerConfig;
 import dev.langchain4j.service.tool.ToolExecutionResult;
 import dev.langchain4j.service.tool.ToolProvider;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
+import io.quarkiverse.langchain4j.mcp.runtime.McpClientName;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.Unremovable;
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Any;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-/** Connects to the GitHub MCP server, read-only, locally through Docker or remotely over HTTP. */
-public final class GitHubMcp {
+/**
+ * The GitHub MCP server, read-only: the local Docker image ({@code github-local}) or the remote endpoint
+ * ({@code github-remote}), both configured in {@code application.properties} and started lazily, so only the selected
+ * one ever runs.
+ */
+@ApplicationScoped
+@Unremovable
+public class GitHubMcp {
 
     public enum Transport {
         LOCAL,
         REMOTE
     }
-
-    public static final String IMAGE = "ghcr.io/github/github-mcp-server";
-    public static final String REMOTE_URL = "https://api.githubcopilot.com/mcp/";
 
     /** The only tools AI agents may call: reading files, searching code, reading commits and issues. */
     public static final List<String> READ_TOOLS =
@@ -35,85 +42,90 @@ public final class GitHubMcp {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private GitHubMcp() {}
+    @Inject
+    @Any
+    Instance<McpClient> clients;
 
-    public static McpClient client(Transport transport, String token) {
-        McpTransport mcpTransport = switch (transport) {
-            case LOCAL -> StdioMcpTransport.builder()
-                    .command(List.of("docker", "run", "-i", "--rm",
-                            "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
-                            "-e", "GITHUB_READ_ONLY=1",
-                            "-e", "GITHUB_TOOLSETS=repos,pull_requests,issues",
-                            IMAGE))
-                    .environment(Map.of("GITHUB_PERSONAL_ACCESS_TOKEN", token))
-                    .build();
-            case REMOTE -> StreamableHttpMcpTransport.builder()
-                    .url(REMOTE_URL)
-                    .customHeaders(Map.of("Authorization", "Bearer " + token))
-                    .timeout(Duration.ofSeconds(60))
-                    .build();
-        };
-        McpClient client = DefaultMcpClient.builder()
-                .key("github")
-                .transport(mcpTransport)
-                .toolExecutionTimeout(Duration.ofSeconds(60))
-                .cacheToolList(true)
-                .build();
-        // fetch the tool list once up front: the client needs it to send tool parameters properly, and it fails fast
-        // when the server cannot start (Docker missing, bad token)
-        client.listTools();
+    @Inject
+    ReviewerConfig config;
+
+    @ConfigProperty(name = "github.token")
+    Optional<String> token;
+
+    private Transport transport;
+    private McpClient client;
+
+    /** For static agent methods, which cannot have collaborators injected. */
+    public static GitHubMcp get() {
+        return Arc.container().instance(GitHubMcp.class).get();
+    }
+
+    @PostConstruct
+    void init() {
+        transport = config.mcp();
+    }
+
+    /** Selects the server for this process; call it before the first review. */
+    public synchronized void use(Transport transport) {
+        if (client != null && transport != this.transport) {
+            throw new IllegalStateException("The GitHub MCP client is already started with " + this.transport);
+        }
+        this.transport = transport;
+    }
+
+    /** The selected client, started on first use; fails fast with an actionable message when it cannot start. */
+    public synchronized McpClient client() {
+        if (client == null) {
+            if (token.filter(t -> !t.isBlank()).isEmpty()) {
+                throw new GitHubAccessException(
+                        "No GitHub token: set GITHUB_TOKEN to a read-only fine-grained token, or log in with 'gh auth login'");
+            }
+            McpClient selected = clients.select(McpClientName.Literal.of("github-" + transport.name().toLowerCase(Locale.ROOT))).get();
+            try {
+                // the client needs the tool list to send tool parameters properly
+                selected.listTools();
+            } catch (RuntimeException e) {
+                throw new GitHubAccessException("Cannot start the GitHub MCP server (" + transport + "): " + e.getMessage()
+                        + (transport == Transport.LOCAL ? ". Is Docker running?" : ""), e);
+            }
+            client = selected;
+        }
         return client;
     }
 
-    /** The GitHub token: {@code GITHUB_TOKEN}, else the token of the GitHub CLI. */
-    public static String resolveToken() {
-        String token = System.getenv("GITHUB_TOKEN");
-        if (token != null && !token.isBlank()) {
-            return token.strip();
-        }
-        try {
-            Process process = new ProcessBuilder("gh", "auth", "token").redirectErrorStream(false).start();
-            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
-            if (process.waitFor(10, TimeUnit.SECONDS) && process.exitValue() == 0 && !output.isBlank()) {
-                return output;
-            }
-        } catch (IOException e) {
-            // gh not installed: fall through
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        throw new IllegalStateException(
-                "No GitHub token: set GITHUB_TOKEN to a read-only fine-grained token, or log in with 'gh auth login'");
+    /** A gateway calling the server's tools directly, for the deterministic fetch. */
+    public GitHubGateway gateway() {
+        return (tool, arguments) -> call(client(), tool, arguments);
     }
 
-    /** Only the read tools of {@link #READ_TOOLS}, for AI agents. */
-    public static ToolProvider readTools(McpClient client) {
-        return McpToolProvider.builder()
-                .mcpClients(client)
+    /**
+     * Only the read tools of {@link #READ_TOOLS}, for AI agents, at most {@code budget} calls per agent invocation. The
+     * server starts when an agent first asks for its tools.
+     */
+    public ToolProvider readTools(int budget) {
+        return new BudgetedToolProvider(() -> McpToolProvider.builder()
+                .mcpClients(client())
                 .filterToolNames(READ_TOOLS)
-                .build();
+                .build(), budget);
     }
 
-    /** A gateway calling tools of the given client directly, for the deterministic fetch. */
-    public static GitHubGateway gateway(McpClient client) {
-        return (tool, arguments) -> {
-            ToolExecutionResult result;
-            try {
-                result = client.executeTool(ToolExecutionRequest.builder()
-                        .name(tool)
-                        .arguments(toJson(arguments))
-                        .build());
-            } catch (GitHubAccessException e) {
-                throw e;
-            } catch (RuntimeException e) {
-                // GitHub errors ("Not Found", missing permissions) arrive as tool execution exceptions
-                throw new GitHubAccessException("GitHub MCP tool '" + tool + "' failed: " + e.getMessage(), e);
-            }
-            if (result.isError()) {
-                throw new GitHubAccessException("GitHub MCP tool '" + tool + "' failed: " + result.resultText());
-            }
-            return result.resultText();
-        };
+    static String call(McpClient client, String tool, Map<String, Object> arguments) {
+        ToolExecutionResult result;
+        try {
+            result = client.executeTool(ToolExecutionRequest.builder()
+                    .name(tool)
+                    .arguments(toJson(arguments))
+                    .build());
+        } catch (GitHubAccessException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            // GitHub errors ("Not Found", missing permissions) arrive as tool execution exceptions
+            throw new GitHubAccessException("GitHub MCP tool '" + tool + "' failed: " + e.getMessage(), e);
+        }
+        if (result.isError()) {
+            throw new GitHubAccessException("GitHub MCP tool '" + tool + "' failed: " + result.resultText());
+        }
+        return result.resultText();
     }
 
     private static String toJson(Map<String, Object> arguments) {

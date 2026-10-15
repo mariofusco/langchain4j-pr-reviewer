@@ -2,8 +2,8 @@ package dev.langchain4j.prreviewer.hitl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dev.langchain4j.prreviewer.model.ApprovalDecision;
 import dev.langchain4j.prreviewer.model.ApprovalDecision.Decision;
+import dev.langchain4j.prreviewer.model.ApprovalDecision;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;

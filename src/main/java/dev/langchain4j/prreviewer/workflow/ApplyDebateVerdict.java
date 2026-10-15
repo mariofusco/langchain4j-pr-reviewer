@@ -1,7 +1,6 @@
 package dev.langchain4j.prreviewer.workflow;
 
 import dev.langchain4j.agentic.Agent;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.prreviewer.keys.Keys;
 import dev.langchain4j.prreviewer.model.DebateVerdict;
 import dev.langchain4j.prreviewer.model.Finding;
@@ -11,12 +10,10 @@ import java.util.List;
 public class ApplyDebateVerdict {
 
     @Agent(name = "applyDebateVerdict", description = "Records the outcome of a debate on its finding",
-            typedOutputKey = Keys.Findings.class)
-    public static List<Finding> apply(@K(Keys.ContestedFinding.class) Finding debated,
-                                      @K(Keys.DebateVerdict.class) DebateVerdict verdict,
-                                      @K(Keys.Findings.class) List<Finding> findings) {
+            outputKey = Keys.FINDINGS)
+    public static List<Finding> apply(Finding contestedFinding, DebateVerdict debateVerdict, List<Finding> findings) {
         return findings.stream()
-                .map(f -> f.id().equals(debated.id()) ? applyTo(f, verdict) : f)
+                .map(f -> f.id().equals(contestedFinding.id()) ? applyTo(f, debateVerdict) : f)
                 .toList();
     }
 

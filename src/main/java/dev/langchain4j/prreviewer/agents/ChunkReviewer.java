@@ -2,16 +2,16 @@ package dev.langchain4j.prreviewer.agents;
 
 import dev.langchain4j.agentic.Agent;
 import dev.langchain4j.agentic.declarative.ChatModelSupplier;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.scope.AgenticScope;
 import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.prreviewer.keys.Keys;
 import dev.langchain4j.prreviewer.model.ModelTier;
 import dev.langchain4j.prreviewer.model.PrSummary;
 import dev.langchain4j.prreviewer.model.RawFinding;
+import dev.langchain4j.prreviewer.models.ModelCatalog;
 import dev.langchain4j.prreviewer.models.ModelSelection;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import io.quarkiverse.langchain4j.agentic.runtime.CdiBean;
 import java.util.List;
 
 /**
@@ -24,12 +24,10 @@ public interface ChunkReviewer {
     @UserMessage(fromResource = "/prompts/chunk-user.md")
     @Agent(name = "chunkReviewer", description = "Reviews one chunk of a very large diff for correctness and security",
             outputKey = "ChunkReview")
-    List<RawFinding> review(@K(Keys.DiffChunk.class) String chunk,
-                            @K(Keys.PrOverview.class) String overview,
-                            @K(Keys.PrSummary.class) PrSummary summary);
+    List<RawFinding> review(String diffChunk, String prOverview, PrSummary prSummary);
 
     @ChatModelSupplier
-    static ChatModel model(AgenticScope scope) {
-        return ModelSelection.fixed(scope, ModelTier.STANDARD);
+    static ChatModel model(@CdiBean ModelCatalog catalog, AgenticScope scope) {
+        return ModelSelection.fixed(catalog, scope, ModelTier.STANDARD);
     }
 }

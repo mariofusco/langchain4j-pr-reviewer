@@ -3,12 +3,10 @@ package dev.langchain4j.prreviewer.workflow;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import dev.langchain4j.agentic.Agent;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.scope.AgenticScope;
-import dev.langchain4j.prreviewer.AppContext;
+import dev.langchain4j.prreviewer.app.ActiveReview;
 import dev.langchain4j.prreviewer.keys.Keys;
 import dev.langchain4j.prreviewer.model.ApprovalDecision;
-import dev.langchain4j.prreviewer.model.PrRef;
 import dev.langchain4j.prreviewer.model.ReviewReport;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,16 +26,14 @@ public class ReportExporter {
     private static final ObjectMapper JSON = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
     @Agent(name = "reportExporter", description = "Writes the final report to report.md and report.json",
-            typedOutputKey = Keys.FinalReport.class)
-    public static ReviewReport export(AgenticScope scope,
-                                      @K(Keys.ReviewReport.class) ReviewReport draftReport,
-                                      @K(Keys.Approval.class) ApprovalDecision approval) {
+            outputKey = Keys.FINAL_REPORT)
+    public static ReviewReport export(AgenticScope scope, ReviewReport reviewReport, ApprovalDecision approval) {
         ReviewReport report = ReportAssembler.assemble(scope);
         if (approval.decision() == ApprovalDecision.Decision.REJECTED) {
             LOG.info("The reviewer rejected the report: nothing is written");
             return report;
         }
-        Path dir = outputDirectory(scope.readState(Keys.PullRequest.class).ref());
+        Path dir = ActiveReview.get().current().orElseThrow().outputDir();
         try {
             Files.createDirectories(dir);
             Files.writeString(dir.resolve("report.md"), report.markdown(), StandardCharsets.UTF_8);
@@ -47,9 +43,5 @@ public class ReportExporter {
         }
         LOG.info("Report written to {}", dir.toAbsolutePath());
         return report;
-    }
-
-    public static Path outputDirectory(PrRef ref) {
-        return AppContext.get().outputDir().resolve(ref.owner() + "-" + ref.repo() + "-" + ref.number());
     }
 }

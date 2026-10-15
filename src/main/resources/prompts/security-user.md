@@ -2,7 +2,7 @@
 
 # The pull request under review
 
-{{ReviewBundle}}
+{{reviewBundle}}
 
 # Your review
 

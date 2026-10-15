@@ -3,7 +3,9 @@ package dev.langchain4j.prreviewer.github;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.langchain4j.prreviewer.model.CiStatus;
+import dev.langchain4j.prreviewer.model.DecisionProvider;
 import dev.langchain4j.prreviewer.model.FileChange;
+import dev.langchain4j.prreviewer.model.ModelProvider;
 import dev.langchain4j.prreviewer.model.PullRequest;
 import dev.langchain4j.prreviewer.model.ReviewOptions;
 import dev.langchain4j.prreviewer.support.FixtureGitHubGateway;
@@ -39,7 +41,8 @@ class DiffPreprocessingTest {
     @Test
     void files_beyond_the_limits_go_to_chunks() {
         DiffPreprocessing.Result result = DiffPreprocessing.process(pr(FixtureGitHubGateway.diff6610()),
-                new ReviewOptions(false, 2, 60_000, null, 3, 0.5, 2.0, 4));
+                new ReviewOptions(false, 2, 60_000, null, 3, 0.5, 2.0, 4, ModelProvider.ANTHROPIC,
+                        DecisionProvider.LOCAL));
 
         assertThat(result.diffText().split("\n### File: ", -1)).hasSize(3);
         assertThat(result.stats().truncated()).isTrue();

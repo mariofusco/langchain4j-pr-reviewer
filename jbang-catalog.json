@@ -1,0 +1,16 @@
+{
+  "catalogs": {},
+  "aliases": {
+    "pr-reviewer": {
+      "script-ref": "dev.langchain4j:langchain4j-pr-reviewer:1.0.0-SNAPSHOT:runner",
+      "description": "Agentic GitHub pull request reviewer: review a pull request, or serve the local web interface",
+      "java": "21+",
+      "java-options": [
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
+        "--enable-native-access=ALL-UNNAMED"
+      ]
+    }
+  }
+}

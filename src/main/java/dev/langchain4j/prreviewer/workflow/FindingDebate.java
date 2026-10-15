@@ -1,6 +1,5 @@
 package dev.langchain4j.prreviewer.workflow;
 
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.declarative.PlannerAgent;
 import dev.langchain4j.agentic.declarative.PlannerSupplier;
 import dev.langchain4j.agentic.patterns.debate.ConvergenceStrategy;
@@ -22,9 +21,9 @@ public interface FindingDebate {
     int MAX_ROUNDS = 2;
 
     @PlannerAgent(name = "findingDebate", description = "Settles a contested finding through a debate",
-            typedOutputKey = Keys.DebateVerdict.class,
+            outputKey = Keys.DEBATE_VERDICT,
             subAgents = {FindingProsecutor.class, FindingDefender.class, DebateJudge.class})
-    DebateVerdict debate(@K(Keys.ContestedFinding.class) Finding finding);
+    DebateVerdict debate(Finding contestedFinding);
 
     @PlannerSupplier
     static Planner planner() {

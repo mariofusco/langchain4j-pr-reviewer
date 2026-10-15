@@ -46,7 +46,7 @@ text{fill:#e6edf3}
 <text x="85" y="151.5" class="s" text-anchor="middle">metrics, verdict,</text>
 <text x="85" y="164.5" class="s" text-anchor="middle">reasoning</text>
 <polyline points="85,222 85,178" class="e" marker-end="url(#a)"/>
-<text x="85" y="236" class="s" text-anchor="middle">ActiveFindings</text>
+<text x="85" y="236" class="s" text-anchor="middle">activeFindings</text>
 <rect x="200" y="60" width="320" height="196" rx="6" class="grp"/>
 <text x="210" y="77" class="n h">votingGate</text>
 <text x="510" y="77" class="p" text-anchor="end">@ConditionalAgent</text>

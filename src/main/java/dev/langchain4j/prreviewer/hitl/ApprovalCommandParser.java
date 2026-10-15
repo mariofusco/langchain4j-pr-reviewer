@@ -1,7 +1,7 @@
 package dev.langchain4j.prreviewer.hitl;
 
-import dev.langchain4j.prreviewer.model.ApprovalDecision;
 import dev.langchain4j.prreviewer.model.ApprovalDecision.Decision;
+import dev.langchain4j.prreviewer.model.ApprovalDecision;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;

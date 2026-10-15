@@ -2,34 +2,34 @@
 
 Write the prose of the review report.
 
-{{PrOverview}}
+{{prOverview}}
 
 Triage:
-{{PrSummary}}
+{{prSummary}}
 
 Usefulness assessment:
-{{Usefulness}}
+{{usefulness}}
 
 Findings still standing:
-{{ActiveFindings}}
+{{activeFindings}}
 
 Scores:
-{{Scores}}
+{{scores}}
 
-Verdict: {{Verdict}}
-Verdict reasoning: {{VerdictReasoning}}
+Verdict: {{verdict}}
+Verdict reasoning: {{verdictReasoning}}
 
 Known limitations of this review:
-{{Limitations}}
+{{limitations}}
 
 Guidance from the human reviewer, if any:
-{{ReviewerGuidance}}
+{{reviewerGuidance}}
 
 Your previous draft, if any:
-{{ReportDraft}}
+{{reportDraft}}
 
 The critique of your previous draft, if any (fix every issue it lists):
-{{ReportCritique}}
+{{reportCritique}}
 
 Return:
 - summary: one paragraph saying what the pull request does and your overall assessment, consistent with the verdict;

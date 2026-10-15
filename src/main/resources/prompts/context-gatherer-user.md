@@ -2,14 +2,14 @@
 
 Collect the code context that the reviewers of this pull request need but cannot see in the diff.
 
-{{PrOverview}}
+{{prOverview}}
 
 Triage:
-{{PrSummary}}
+{{prSummary}}
 
 The reviewed diff:
 <diff>
-{{DiffText}}
+{{diffText}}
 </diff>
 
 You can read the repository with tools. Use the owner, repository and head sha shown in the overview:

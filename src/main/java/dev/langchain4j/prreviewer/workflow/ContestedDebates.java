@@ -1,10 +1,11 @@
 package dev.langchain4j.prreviewer.workflow;
 
 import dev.langchain4j.agentic.declarative.ExitCondition;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.declarative.LoopAgent;
-import dev.langchain4j.prreviewer.AppContext;
+import dev.langchain4j.agentic.scope.AgenticScope;
+import dev.langchain4j.prreviewer.app.ActiveReview;
 import dev.langchain4j.prreviewer.keys.Keys;
+import dev.langchain4j.prreviewer.keys.ScopeState;
 import dev.langchain4j.prreviewer.model.Finding;
 import dev.langchain4j.prreviewer.model.ReviewOptions;
 import java.util.List;
@@ -16,13 +17,14 @@ import java.util.List;
 public interface ContestedDebates {
 
     @LoopAgent(name = "contestedDebates", description = "Debates the contested findings one at a time",
-            typedOutputKey = Keys.Findings.class, maxIterations = 10,
-            subAgents = {NextContested.class, FindingDebate.class, ApplyDebateVerdict.class})
-    List<Finding> debate(@K(Keys.ContestedFindings.class) List<Finding> queue);
+            outputKey = Keys.FINDINGS, maxIterations = 10,
+            subAgents = {NextContested.class, ContestedDiffProjection.class, DebateContextProjection.class,
+                    FindingDebate.class, ApplyDebateVerdict.class})
+    List<Finding> debate(List<Finding> findings);
 
     @ExitCondition(testExitAtLoopEnd = true, description = "no contested finding left, or cost cap reached")
-    static boolean exit(@K(Keys.ContestedFindings.class) List<Finding> queue,
-                        @K(Keys.Options.class) ReviewOptions options) {
-        return queue.isEmpty() || AppContext.get().ledger().exceeded(options.maxCostUsd());
+    static boolean exit(AgenticScope scope, ReviewOptions options) {
+        List<Finding> queue = ScopeState.read(scope, Keys.CONTESTED_FINDINGS);
+        return queue.isEmpty() || ActiveReview.get().ledger().exceeded(options.maxCostUsd());
     }
 }

@@ -1,0 +1,77 @@
+{#include layout}
+{#title}PR Reviewer{/title}
+<section class="card">
+  <h1>Review a pull request</h1>
+  {#if page.error}<p class="error">{page.error}</p>{/if}
+  <form method="post" action="/reviews">
+    <input type="hidden" name="{inject:csrf.parameterName}" value="{inject:csrf.token}">
+    <label class="wide">Pull request
+      <input name="pr" value="{page.pr}" placeholder="https://github.com/owner/repo/pull/123 or owner/repo#123" required autofocus>
+    </label>
+    <div class="row">
+      <label>Mode
+        <select name="mode">{#for c in page.modes}<option value="{c.value}"{#if c.selected} selected{/if}>{c.label}</option>{/for}</select>
+      </label>
+      <label>Provider
+        <select name="provider">{#for c in page.providers}<option value="{c.value}"{#if c.selected} selected{/if}>{c.label}</option>{/for}</select>
+      </label>
+      <label>Decision model
+        <select name="decisionModel">{#for c in page.decisionModels}<option value="{c.value}"{#if c.selected} selected{/if}>{c.label}</option>{/for}</select>
+      </label>
+      <label class="check"><input type="checkbox" name="deep" value="true"{#if page.defaults.deep} checked{/if}> Deep review</label>
+    </div>
+    <details>
+      <summary>Budgets and routing</summary>
+      <div class="row">
+        <label>Cost cap (USD) <input type="number" step="0.1" min="0" name="maxCost" value="{page.defaults.maxCostUsd}"></label>
+        <label>Debates per revision <input type="number" min="0" name="maxDebates" value="{page.defaults.maxDebates}"></label>
+        <label>Files in the diff <input type="number" min="1" name="maxFiles" value="{page.defaults.maxFiles}"></label>
+        <label>Diff tokens <input type="number" min="1000" name="maxDiffTokens" value="{page.defaults.maxDiffTokens}"></label>
+        <label>Chunks <input type="number" min="0" name="maxChunks" value="{page.defaults.maxChunks}"></label>
+        <label>Router threshold <input name="routerThreshold" value="{page.routerThreshold}" placeholder="0.2 local, 0.5 hosted"></label>
+        <label>Model tier
+          <select name="modelTier"><option value="">per agent</option>{#for c in page.tiers}<option value="{c.value}"{#if c.selected} selected{/if}>{c.label}</option>{/for}</select>
+        </label>
+      </div>
+    </details>
+    <button type="submit">Review</button>
+  </form>
+</section>
+
+{#if page.runs}
+<section class="card">
+  <h2>This session</h2>
+  <table>
+    {#for run in page.runs}
+    <tr>
+      <td><a href="/reviews/{run.id}">{run.pr}</a></td>
+      <td><span class="badge {run.status.name}">{run.status.label}</span></td>
+      <td class="num">{#if run.status.name == 'QUEUED'}
+        <form method="post" action="/reviews/{run.id}/cancel" class="inline">
+          <input type="hidden" name="{inject:csrf.parameterName}" value="{inject:csrf.token}">
+          <button class="link">cancel</button>
+        </form>{/if}</td>
+    </tr>
+    {/for}
+  </table>
+</section>
+{/if}
+
+<section class="card">
+  <h2>Past reviews</h2>
+  {#if page.history}
+  <table>
+    {#for e in page.history}
+    <tr>
+      <td><a href="/reports/{e.directory}">{e.pr}</a></td>
+      <td><span class="badge {e.verdict}">{e.verdict}</span></td>
+      <td class="num">{e.overall}/10</td>
+      <td class="muted num when">{e.when}</td>
+    </tr>
+    {/for}
+  </table>
+  {#else}
+  <p class="muted">No report in the output directory yet.</p>
+  {/if}
+</section>
+{/include}

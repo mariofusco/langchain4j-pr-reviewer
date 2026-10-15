@@ -2,16 +2,16 @@
 
 Score this pull request independently, as a pragmatic maintainer who values contributions and accepts imperfections that can be fixed later. Be fair, but stay within the rubric and the evidence.
 
-{{PrOverview}}
+{{prOverview}}
 
 Triage:
-{{PrSummary}}
+{{prSummary}}
 
 Usefulness assessment:
-{{Usefulness}}
+{{usefulness}}
 
 Findings still standing:
-{{ActiveFindings}}
+{{activeFindings}}
 
 Guidance from the human reviewer, if any:
-{{ReviewerGuidance}}
+{{reviewerGuidance}}

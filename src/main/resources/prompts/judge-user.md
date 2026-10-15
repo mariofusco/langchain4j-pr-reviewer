@@ -3,7 +3,7 @@
 Decide whether the following finding on a pull request is real, from the debate between a prosecutor and a defender.
 
 The finding:
-{{ContestedFinding}}
+{{contestedFinding}}
 
 The debate:
 {{debateContext}}

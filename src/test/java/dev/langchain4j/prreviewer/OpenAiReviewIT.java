@@ -1,15 +1,20 @@
 package dev.langchain4j.prreviewer;
 
-import dev.langchain4j.prreviewer.models.ChatModelProvider;
+import dev.langchain4j.prreviewer.model.ModelProvider;
+import dev.langchain4j.prreviewer.support.TestProfiles;
+import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-/** The same review on the OpenAI tiers (gpt-5-nano, gpt-5.6-luna, gpt-5.1); a few cents per run. */
+/** The review on the OpenAI tiers (small, medium and large model); a few cents per run. */
+@QuarkusTest
+@TestProfile(TestProfiles.RealServices.class)
 @EnabledIf("dev.langchain4j.prreviewer.support.Availability#openAi")
 class OpenAiReviewIT extends RealModelReviewIT {
 
     @Override
-    protected ChatModelProvider provider() {
-        return ChatModelProvider.OPENAI;
+    protected ModelProvider provider() {
+        return ModelProvider.OPENAI;
     }
 
     @Override

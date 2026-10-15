@@ -2,16 +2,16 @@
 
 Score this pull request.
 
-{{PrOverview}}
+{{prOverview}}
 
 Triage:
-{{PrSummary}}
+{{prSummary}}
 
 Usefulness assessment:
-{{Usefulness}}
+{{usefulness}}
 
 Findings still standing:
-{{ActiveFindings}}
+{{activeFindings}}
 
 Guidance from the human reviewer, if any:
-{{ReviewerGuidance}}
+{{reviewerGuidance}}

@@ -15,7 +15,7 @@ import dev.langchain4j.prreviewer.model.Severity;
 import dev.langchain4j.prreviewer.model.Size;
 import dev.langchain4j.prreviewer.model.Verdict;
 import dev.langchain4j.prreviewer.model.Verification;
-import dev.langchain4j.prreviewer.support.StubAgents;
+import dev.langchain4j.prreviewer.support.TestData;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -44,7 +44,7 @@ class ScoringRulesTest {
     })
     void credible_severe_findings_cap_their_metric(FindingCategory category, Severity severity, double confidence,
                                                   Verification verification, Metric metric, double cap) {
-        Caps.Result result = Caps.apply(StubAgents.card(9.0, Verdict.APPROVE).metrics(),
+        Caps.Result result = Caps.apply(TestData.card(9.0, Verdict.APPROVE).metrics(),
                 List.of(finding(category, severity, confidence, verification)), WITH_TESTS, BUGFIX);
 
         assertThat(score(result, metric)).isEqualTo(cap);
@@ -54,7 +54,7 @@ class ScoringRulesTest {
     @Test
     void unconfirmed_low_confidence_rejected_and_unsure_findings_do_not_cap_or_floor() {
         Finding unsure = finding(FindingCategory.CORRECTNESS, Severity.HIGH, 0.95, Verification.UNSURE);
-        Caps.Result result = Caps.apply(StubAgents.card(9.0, Verdict.APPROVE).metrics(), List.of(
+        Caps.Result result = Caps.apply(TestData.card(9.0, Verdict.APPROVE).metrics(), List.of(
                         finding(FindingCategory.SECURITY, Severity.CRITICAL, 0.5, Verification.UNVERIFIED),
                         finding(FindingCategory.CORRECTNESS, Severity.CRITICAL, 0.9, Verification.REJECTED),
                         unsure),
@@ -68,12 +68,12 @@ class ScoringRulesTest {
 
     @Test
     void caps_never_raise_a_score_and_fix_without_tests_is_capped() {
-        Caps.Result result = Caps.apply(StubAgents.card(1.0, Verdict.REQUEST_CHANGES).metrics(),
+        Caps.Result result = Caps.apply(TestData.card(1.0, Verdict.REQUEST_CHANGES).metrics(),
                 List.of(finding(FindingCategory.SECURITY, Severity.HIGH, 0.9, Verification.CONFIRMED)), stats(false), BUGFIX);
 
         assertThat(score(result, Metric.SECURITY)).isEqualTo(1.0);
         assertThat(score(result, Metric.TEST_COVERAGE)).isEqualTo(1.0);
-        assertThat(Caps.apply(StubAgents.card(9.0, Verdict.APPROVE).metrics(), List.of(), stats(false), BUGFIX)
+        assertThat(Caps.apply(TestData.card(9.0, Verdict.APPROVE).metrics(), List.of(), stats(false), BUGFIX)
                 .metrics()).filteredOn(m -> m.metric() == Metric.TEST_COVERAGE).singleElement()
                 .extracting(MetricScore::score).isEqualTo(4.0);
     }
@@ -123,20 +123,20 @@ class ScoringRulesTest {
         Finding doubtful = finding(FindingCategory.CORRECTNESS, Severity.HIGH, 0.75, Verification.UNVERIFIED);
         Finding certain = finding(FindingCategory.CORRECTNESS, Severity.HIGH, 0.95, Verification.CONFIRMED);
 
-        assertThat(VotingTrigger.isBorderline(StubAgents.card(7.3, Verdict.APPROVE), List.of(), WITH_TESTS, BUGFIX)).isTrue();
-        assertThat(VotingTrigger.isBorderline(StubAgents.card(9.0, Verdict.APPROVE), List.of(), WITH_TESTS, BUGFIX)).isFalse();
+        assertThat(VotingTrigger.isBorderline(TestData.card(7.3, Verdict.APPROVE), List.of(), WITH_TESTS, BUGFIX)).isTrue();
+        assertThat(VotingTrigger.isBorderline(TestData.card(9.0, Verdict.APPROVE), List.of(), WITH_TESTS, BUGFIX)).isFalse();
         // the verdict hangs on one finding of middling confidence
-        assertThat(VotingTrigger.isBorderline(StubAgents.card(9.0, Verdict.COMMENT), List.of(doubtful), WITH_TESTS, BUGFIX)).isTrue();
-        assertThat(VotingTrigger.isBorderline(StubAgents.card(9.0, Verdict.COMMENT), List.of(certain), WITH_TESTS, BUGFIX)).isFalse();
+        assertThat(VotingTrigger.isBorderline(TestData.card(9.0, Verdict.COMMENT), List.of(doubtful), WITH_TESTS, BUGFIX)).isTrue();
+        assertThat(VotingTrigger.isBorderline(TestData.card(9.0, Verdict.COMMENT), List.of(certain), WITH_TESTS, BUGFIX)).isFalse();
         // a model-only REQUEST_CHANGES
-        assertThat(VotingTrigger.isBorderline(StubAgents.card(4.0, Verdict.REQUEST_CHANGES), List.of(), WITH_TESTS, BUGFIX)).isTrue();
+        assertThat(VotingTrigger.isBorderline(TestData.card(4.0, Verdict.REQUEST_CHANGES), List.of(), WITH_TESTS, BUGFIX)).isTrue();
     }
 
     @Test
     void votes_are_averaged_and_the_majority_verdict_wins_with_ties_to_the_stricter() {
-        ScoreCard a = StubAgents.card(6.0, Verdict.COMMENT);
-        ScoreCard b = StubAgents.card(8.0, Verdict.APPROVE);
-        ScoreCard c = StubAgents.card(7.0, Verdict.COMMENT);
+        ScoreCard a = TestData.card(6.0, Verdict.COMMENT);
+        ScoreCard b = TestData.card(8.0, Verdict.APPROVE);
+        ScoreCard c = TestData.card(7.0, Verdict.COMMENT);
 
         ScoreCard result = ScoreCardVotingStrategy.aggregate(List.of(a, b, c));
         assertThat(result.metrics()).allSatisfy(m -> assertThat(m.score()).isEqualTo(7.0));
@@ -149,11 +149,11 @@ class ScoringRulesTest {
 
     @Test
     void a_metric_is_applicable_when_most_voters_say_so() {
-        List<MetricScore> notApplicable = new ArrayList<>(StubAgents.card(5.0, Verdict.COMMENT).metrics());
+        List<MetricScore> notApplicable = new ArrayList<>(TestData.card(5.0, Verdict.COMMENT).metrics());
         notApplicable.replaceAll(m -> m.metric() == Metric.API_AND_DOCS ? new MetricScore(m.metric(), false, 0, "n/a") : m);
         ScoreCard na = new ScoreCard(notApplicable, Verdict.COMMENT, "", 0.8);
 
-        ScoreCard result = ScoreCardVotingStrategy.aggregate(List.of(na, na, StubAgents.card(9.0, Verdict.APPROVE)));
+        ScoreCard result = ScoreCardVotingStrategy.aggregate(List.of(na, na, TestData.card(9.0, Verdict.APPROVE)));
 
         assertThat(result.metrics()).filteredOn(m -> m.metric() == Metric.API_AND_DOCS).singleElement()
                 .extracting(MetricScore::applicable).isEqualTo(false);

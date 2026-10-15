@@ -4,6 +4,7 @@ import dev.langchain4j.agentic.observability.AgentInvocationError;
 import dev.langchain4j.agentic.observability.AgentListener;
 import dev.langchain4j.agentic.observability.AgentRequest;
 import dev.langchain4j.agentic.observability.AgentResponse;
+import jakarta.enterprise.context.ApplicationScoped;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
@@ -11,7 +12,8 @@ import java.util.Deque;
  * Tracks which agent is running on the current thread, so that model calls can be attributed to it. The agentic
  * framework notifies listeners on the thread that runs the agent, also for parallel and asynchronous agents.
  */
-public final class AgentAttribution implements AgentListener {
+@ApplicationScoped
+public class AgentAttribution implements AgentListener {
 
     public static final String UNATTRIBUTED = "(unattributed)";
 

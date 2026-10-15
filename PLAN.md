@@ -1,7 +1,8 @@
 # LangChain4j PR Reviewer — Plan
 
 *Revision 5, 2026-10-15: the reviewer moves to Quarkus through the quarkus-langchain4j extensions, gains a local web
-interface, and its CLI becomes a set of picocli subcommands with shell completion. Revision 4 (2026-10-08) described the
+interface, and its CLI becomes a set of picocli subcommands with shell completion. Implemented the same day on the
+`quarkus-port` branch; what the implementation changed in this plan is listed in section 21.4. Revision 4 (2026-10-08) described the
 plain-Java implementation that exists today; its design carries over, and the notes it accumulated are kept in
 section 22. Decisions in section 0 come from the grilling rounds of 2026-10-15.*
 
@@ -108,7 +109,7 @@ pr-reviewer (Quarkus uber-jar, @QuarkusMain)
 │                 │
 │                 ▼
 │         PrReviewSystem (@Inject; built and validated by quarkus-langchain4j-agentic)
-│           static suppliers and conditions reach CDI beans: ModelCatalog, DecisionModels, GitHubTools, ActiveReview
+│           static suppliers and conditions reach CDI beans: ModelCatalog, DecisionModels, GitHubMcp, ActiveReview
 │                 │
 │                 ▼
 │   quarkus-langchain4j: anthropic · openai (named chat models) · typesafe (named decision models) · mcp (GitHub)
@@ -134,53 +135,55 @@ review and a long-running server does not accumulate executions.
 
 ```
 prReviewSystem  @SequenceAgent, root, MonitoredAgent; @BeforeCall seeds defaults; @ErrorHandler for the whole tree
-├─ prFetcher              non-AI bean      PrUrl → PullRequest (MCP executeTool)
-├─ diffPreprocessor       non-AI bean      → DiffStats; also writes Changes, DiffText, PrOverview, DiffChunks
-├─ diffText               projection (new) → DiffText
-├─ prOverview             projection (new) → PrOverview
-├─ diffChunks             projection (new) → DiffChunks
-├─ prTriage               small            → PrSummary
-├─ routingInputs          non-AI bean      → RoutingInput (flags for the router)
+├─ prFetcher              non-AI bean      prUrl → pullRequest (MCP executeTool)
+├─ diffPreprocessor       non-AI bean      → diffStats; also writes changes, diffText, prOverview, diffChunks
+├─ diffText               projection (new) → diffText
+├─ prOverview             projection (new) → prOverview
+├─ diffChunks             projection (new) → diffChunks
+├─ prTriage               small            → prSummary
+├─ routingInputs          non-AI bean      → routingInput (flags for the router)
 ├─ contextGate            @ConditionalAgent [triage needs context]
-│    └─ contextGatherer   small → medium, GitHub read tools (12 calls)   → CodeContext
+│    └─ contextGatherer   small → medium, GitHub read tools (12 calls)   → codeContext
 ├─ clarificationGate      @ConditionalAgent [INTERACTIVE]
-│    └─ clarification     @SequenceAgent: questionGenerator (small) → questionsGate → humanClarification   → ReviewerGuidance
-├─ reviewBundleBuilder    non-AI bean      → ReviewBundle (what every reviewer reads)
-├─ usefulnessAssessor     small → medium, asynchronous   → Usefulness
-├─ reviewPanel            @PlannerAgent + DecisionRouterPlanner   → PanelOutputs
+│    └─ clarification     @SequenceAgent: questionGenerator (small) → questionsGate → humanClarification   → reviewerGuidance
+├─ reviewBundleBuilder    non-AI bean      → reviewBundle (what every reviewer reads)
+├─ usefulnessAssessor     small → medium, asynchronous   → usefulness
+├─ reviewPanel            @PlannerAgent + DecisionRouterPlanner   → panelOutputs
 │    ├─ correctnessReviewer   medium → large     ├─ testReviewer      small
 │    ├─ securityReviewer      medium → large     └─ docsApiReviewer   small
 │    └─ designReviewer        small → medium
 ├─ coverageFloor          @ConditionalAgent: correctnessReviewerFallback (medium), securityReviewerFallback (medium),
 │                         docsApiReviewerFallback (small), each when the router skipped an essential review
-├─ largeDiffGate          @ConditionalAgent [DiffChunks not empty]
-│    └─ chunkedReview     @ParallelMapperAgent over DiffChunks: chunkReviewer (medium)   → ChunkFindings
-├─ findingsConsolidator   non-AI bean      → Findings; also writes ContestedFindings, Limitations
+├─ diffChunk              declaration (new) → diffChunk (the mapper passes each chunk directly)
+├─ largeDiffGate          @ConditionalAgent [diffChunks not empty]
+│    └─ chunkedReview     @ParallelMapperAgent over diffChunks: chunkReviewer (medium)   → chunkFindings
+├─ findingsConsolidator   non-AI bean      → findings; also writes contestedFindings, limitations
 ├─ reviewRevisionLoop     @LoopAgent, at most 3 passes, exits unless the approval is CONTEST
 │    ├─ applyHumanFeedback      non-AI bean
 │    ├─ debateGate              @ConditionalAgent [contested findings, within the cost cap]
 │    │    └─ contestedDebates   @LoopAgent, one finding per iteration
-│    │         ├─ nextContested        non-AI bean   → ContestedFinding; also writes ContestedDiff
-│    │         ├─ contestedDiff        projection (new) → ContestedDiff
-│    │         ├─ findingDebate        @PlannerAgent + DebatePlanner(2 rounds, unanimousLastWord)   → DebateVerdict
+│    │         ├─ nextContested        non-AI bean   → contestedFinding; also writes contestedDiff
+│    │         ├─ contestedDiff        projection (new) → contestedDiff
+│    │         ├─ debateContext        projection (new) → debateContext (the debate planner's transcript)
+│    │         ├─ findingDebate        @PlannerAgent + DebatePlanner(2 rounds, unanimousLastWord)   → debateVerdict
 │    │         │    ├─ findingProsecutor   medium, GitHub read tools (6 calls)
 │    │         │    ├─ findingDefender     medium, GitHub read tools (6 calls)
 │    │         │    └─ debateJudge         medium → large
-│    │         └─ applyDebateVerdict   non-AI bean   → Findings
+│    │         └─ applyDebateVerdict   non-AI bean   → findings
 │    ├─ debateBudgetGuard       non-AI bean   leftover contested findings become UNSURE
-│    ├─ activeFindingsSelector  non-AI bean   → ActiveFindings
-│    ├─ scorer                  medium        → ScoreCard
+│    ├─ activeFindingsSelector  non-AI bean   → activeFindings
+│    ├─ scorer                  medium        → scoreCard
 │    ├─ votingGate              @ConditionalAgent [borderline, within the cost cap]
 │    │    └─ scoreVoting        @PlannerAgent + VotingPlanner: neutralScorer (medium), skepticalScorer (medium), lenientScorer (small)
-│    ├─ scoreCalibrator         non-AI bean   → Scores; also writes Verdict, VerdictReasoning
-│    ├─ verdict                 projection (new) → Verdict
-│    ├─ verdictReasoning        projection (new) → VerdictReasoning
-│    ├─ limitations             projection (new) → Limitations
+│    ├─ scoreCalibrator         non-AI bean   → scores; also writes verdict, verdictReasoning
+│    ├─ verdict                 projection (new) → verdict
+│    ├─ verdictReasoning        projection (new) → verdictReasoning
+│    ├─ limitations             projection (new) → limitations
 │    ├─ reportQualityLoop       @LoopAgent, at most 3 rounds: reportWriter (medium → large), reportAssembler (non-AI), reportCritic (small)
-│    └─ approvalGate            @ConditionalAgent: humanApproval [INTERACTIVE] | autoApproval [AUTO]   → Approval
+│    └─ approvalGate            @ConditionalAgent: humanApproval [INTERACTIVE] | autoApproval [AUTO]   → approval
 ├─ finalizerGate          @ConditionalAgent [edits requested, or contest after the last pass]
 │    └─ finalization      @SequenceAgent: applyFinalFeedback, scoreCalibrator, reportFinalizer (small), reportAssembler
-└─ reportExporter         non-AI bean      report.md, report.json (not on rejection)   → FinalReport
+└─ reportExporter         non-AI bean      report.md, report.json (not on rejection)   → finalReport
 ```
 
 The revision loop is what lets the human contest findings: after a `CONTEST` decision, `applyHumanFeedback` drops the
@@ -197,27 +200,28 @@ parameter an agent reads (section 5.3), and it makes the data flow visible in th
 
 ### 5.1 String keys
 
-`Keys` becomes a class of `String` constants with the names used today (the simple names of the former `TypedKey`
-classes), so prompt templates (`{{DiffText}}`, `{{PrOverview}}`, …) do not change. Mechanical rewrite:
+`Keys` becomes a class of `String` constants, named after the former `TypedKey` classes, whose values are the camelCase
+key names (`Keys.DIFF_TEXT = "diffText"`). Agent parameters carry no `@V`: the code is compiled with `-parameters`, and
+both the extension's validation and langchain4j take the key from the parameter name. So every parameter is named after
+the key it reads, and prompt templates use the same names (`{{diffText}}`, `{{prOverview}}`, …). Mechanical rewrite:
 
 | Today | After the port |
 |---|---|
 | `typedOutputKey = Keys.Findings.class` | `outputKey = Keys.FINDINGS` |
-| `@K(Keys.Findings.class) List<Finding> findings` | `@V(Keys.FINDINGS) List<Finding> findings` |
+| `@K(Keys.PrSummary.class) PrSummary summary` | `PrSummary prSummary` |
+| `{{PrSummary}}` in a prompt template | `{{prSummary}}` |
 | `scope.readState(Keys.Findings.class)` | `scope.readState(Keys.FINDINGS, List.of())` |
 | `TypedKey.defaultValue()` | seeded by the root's `@BeforeCall` with `writeStateIfAbsent` (section 5.2) |
 | `ScopeLists.append(scope, Keys.Limitations.class, …)` | `ScopeLists.append(scope, Keys.LIMITATIONS, …)` |
 
-Compile with `-parameters` (the validation reads parameter names when there is no `@V`), but always use `@V`.
-
 ### 5.2 Defaults seeded by the root
 
 `@BeforeCall static void seedDefaults(AgenticScope scope)` on `PrReviewSystem` (the extension requires exactly an
-`AgenticScope` parameter) writes, if absent: `DiffChunks`, `ClarificationQuestions`, `CorrectnessFindings`,
-`SecurityFindings`, `DesignFindings`, `TestFindings`, `DocsFindings`, `ChunkFindings`, `Findings`, `ActiveFindings`,
-`ContestedFindings`, `Limitations`, `DegradedAgents` (empty lists); `CodeContext`, `ReviewerGuidance` (`""`);
-`PanelOutputs` (empty map); `ReportDraft` (`ReportDraft.none()`); `ReportCritique` (`Critique.none()`);
-`RevisionRound` and `ReportRound` (`0`). These are exactly the keys with a default today, plus `ReportRound`.
+`AgenticScope` parameter) writes, if absent: `diffChunks`, `clarificationQuestions`, `correctnessFindings`,
+`securityFindings`, `designFindings`, `testFindings`, `docsFindings`, `chunkFindings`, `findings`, `activeFindings`,
+`contestedFindings`, `limitations`, `degradedAgents` (empty lists); `codeContext`, `reviewerGuidance` (`""`);
+`panelOutputs` (empty map); `reportDraft` (`ReportDraft.none()`); `reportCritique` (`Critique.none()`);
+`revisionRound` and `reportRound` (`0`). These are exactly the keys with a default today, plus `reportRound`.
 
 ### 5.3 Adapting to the extension's validation
 
@@ -229,16 +233,17 @@ understood, and keys written with `scope.writeState` count as undeclared. Invent
 | Key or construct | Today | Readers that fail the check | Adaptation |
 |---|---|---|---|
 | all 47 typed keys | `typedOutputKey` (56 uses), `@K` | every agent | string keys (5.1) |
-| `DiffText` | written by diffPreprocessor | prTriage, contextGatherer (AI), reviewBundleBuilder | `diffText` projection |
-| `PrOverview` | written by diffPreprocessor | 12 AI agents, reviewBundleBuilder | `prOverview` projection |
-| `DiffChunks` | written by diffPreprocessor | chunkedReview, largeDiffGate (method parameters) | `diffChunks` projection |
-| `ContestedDiff` | written by nextContested | findingProsecutor, findingDefender (AI) | `contestedDiff` projection |
-| `Verdict`, `VerdictReasoning` | written by scoreCalibrator | reportWriter (AI), reportAssembler | `verdict`, `verdictReasoning` projections; reportAssembler reads them through `AgenticScope` (it also runs in finalization, after the projections) |
-| `Limitations` | appended by five agents | reportWriter (AI), reportAssembler | `limitations` projection before the report loop; reportAssembler reads through `AgenticScope` |
-| `Changes` | written by diffPreprocessor | findingsConsolidator, nextContested (non-AI) | `AgenticScope` parameter |
-| `ContestedFindings` | written by four agents | contestedDebates (method parameter), debateBudgetGuard, nextContested | `AgenticScope` reads; `contestedDebates` takes `Findings` as its method parameter |
-| `@LoopCounter` | reportQualityLoop's exit condition | the exit condition | `ReportRound` counter incremented by reportAssembler, reset by applyHumanFeedback; the exit condition reads it through `AgenticScope` |
-| `DiffChunk` (mapper item) | chunkReviewer's parameter | unknown | checked in the Phase 0 spike; if rejected, a declaring projection or an upstream issue |
+| `diffText` | written by diffPreprocessor | prTriage, contextGatherer (AI), reviewBundleBuilder | `diffText` projection |
+| `prOverview` | written by diffPreprocessor | 12 AI agents, reviewBundleBuilder | `prOverview` projection |
+| `diffChunks` | written by diffPreprocessor | chunkedReview, largeDiffGate (method parameters) | `diffChunks` projection |
+| `contestedDiff` | written by nextContested | findingProsecutor, findingDefender (AI) | `contestedDiff` projection |
+| `verdict`, `verdictReasoning` | written by scoreCalibrator | reportWriter (AI), reportAssembler | `verdict`, `verdictReasoning` projections; reportAssembler reads them through `AgenticScope` (it also runs in finalization, after the projections) |
+| `limitations` | appended by five agents | reportWriter (AI), reportAssembler | `limitations` projection before the report loop; reportAssembler reads through `AgenticScope` |
+| `changes` | written by diffPreprocessor | findingsConsolidator, nextContested (non-AI) | `AgenticScope` parameter |
+| `contestedFindings` | written by four agents | contestedDebates (method parameter), debateBudgetGuard, nextContested | `AgenticScope` reads; `contestedDebates` takes `findings` as its method parameter |
+| `@LoopCounter` | reportQualityLoop's exit condition | the exit condition | `reportRound` counter incremented by reportAssembler, reset by applyHumanFeedback; the exit condition reads it through `AgenticScope` |
+| `debateContext` | written by the debate planner | findingProsecutor, findingDefender, debateJudge (AI) | `debateContext` projection, after nextContested resets it |
+| `diffChunk` (mapper item) | chunkReviewer's parameter | chunkReviewer | `diffChunk` declaration before largeDiffGate; the mapper passes each chunk to the reviewer directly, so the empty value it writes is never read |
 
 Activation conditions are not validated, so `debateGate`'s condition may keep its key parameters. The spike (section
 20) runs the build and confirms the list is complete.
@@ -247,32 +252,32 @@ Activation conditions are not validated, so `debateGate`'s condition may keep it
 
 | Key | Type | Declared by | Also written by | Main readers |
 |---|---|---|---|---|
-| `PrUrl`, `Mode`, `Options` | `String`, `ReviewMode`, `ReviewOptions` | root parameters | — | prFetcher; gates; suppliers, gates, preprocessor |
-| `PullRequest` | `PullRequest` | prFetcher | — | preprocessor, humanClarification, assembler, exporter |
-| `DiffStats` | `DiffStats` | diffPreprocessor | — | routingInputs, coverageFloor, calibrator, voting gate, suppliers |
-| `Changes` | `List<FileChange>` | — (scope) | diffPreprocessor | consolidator, nextContested |
-| `DiffText`, `PrOverview`, `DiffChunks` | `String`, `String`, `List<String>` | projections | diffPreprocessor | triage, gatherer, bundle builder, AI agents; chunked review |
-| `PrSummary` | `PrSummary` | prTriage | — | most AI agents, routingInputs, gates, calibrator |
-| `RoutingInput` | `Map<String, Object>` | routingInputs | — | reviewPanel (the decision input) |
-| `CodeContext` | `String` | contextGatherer, contextGate | — | questionGenerator, bundle builder |
-| `ClarificationQuestions` | `List<String>` | questionGenerator | — | questionsGate, humanClarification |
-| `ReviewerGuidance` | `String` | humanClarification and its gates | applyHumanFeedback | bundle builder, debaters, scorers, writer |
-| `ReviewBundle` | `String` | reviewBundleBuilder | — | the reviewers and their fallbacks |
-| `Usefulness` | `UsefulnessAssessment` | usefulnessAssessor | — | scorers, writer |
-| `PanelOutputs` | `Map<String, Object>` | reviewPanel | — | coverageFloor, consolidator, assembler |
-| `CorrectnessFindings` … `DocsFindings`, `ChunkFindings` | `List<RawFinding>`, `List<List<RawFinding>>` | reviewers, fallbacks, chunked review | — | consolidator |
-| `Findings` | `List<Finding>` | consolidator, debate steps, applyHumanFeedback | applyFinalFeedback | debate steps, active selector, humanApproval |
-| `ActiveFindings` | `List<Finding>` | activeFindingsSelector, applyFinalFeedback | — | scorers, calibrator, writer, critic, assembler |
-| `ContestedFindings` | `List<Finding>` | — (scope) | consolidator, nextContested, budget guard, applyHumanFeedback | debate gate and loop, budget guard |
-| `ContestedFinding`, `ContestedDiff` | `Finding`, `String` | nextContested, projection | nextContested | debaters, judge, applyDebateVerdict |
-| `Prosecution`, `Defense`, `DebateVerdict` | `String`, `String`, `DebateVerdict` | debaters, judge | nextContested (reset) | the debate, applyDebateVerdict |
-| `ScoreCard`, `ScoreVote1..3` | `ScoreCard` | scorer, voters, scoreVoting | — | voting gate, calibrator |
-| `Scores`, `Verdict`, `VerdictReasoning` | `Scores`, `Verdict`, `String` | calibrator, projections | calibrator | writer, assembler, report loop |
-| `ReportDraft`, `ReviewReport`, `ReportCritique` | `ReportDraft`, `ReviewReport`, `Critique` | writer/finalizer, assembler, critic | applyHumanFeedback (reset) | the report loop, approval, exporter |
-| `Approval` | `ApprovalDecision` | approval agents | applyHumanFeedback (reset) | revision loop exit, feedback steps, finalizer gate |
-| `RevisionRound`, `ReportRound` | `Integer` | — (scope) | applyHumanFeedback; reportAssembler | assembler; report loop exit |
-| `Limitations`, `DegradedAgents` | `List<String>` | projection; — | five agents; error handler | writer, assembler, calibrator |
-| `FinalReport` | `ReviewReport` | reportExporter (root output) | — | the caller |
+| `prUrl`, `mode`, `options` | `String`, `ReviewMode`, `ReviewOptions` | root parameters | — | prFetcher; gates; suppliers, gates, preprocessor |
+| `pullRequest` | `PullRequest` | prFetcher | — | preprocessor, humanClarification, assembler, exporter |
+| `diffStats` | `DiffStats` | diffPreprocessor | — | routingInputs, coverageFloor, calibrator, voting gate, suppliers |
+| `changes` | `List<FileChange>` | — (scope) | diffPreprocessor | consolidator, nextContested |
+| `diffText`, `prOverview`, `diffChunks` | `String`, `String`, `List<String>` | projections | diffPreprocessor | triage, gatherer, bundle builder, AI agents; chunked review |
+| `prSummary` | `PrSummary` | prTriage | — | most AI agents, routingInputs, gates, calibrator |
+| `routingInput` | `Map<String, Object>` | routingInputs | — | reviewPanel (the decision input) |
+| `codeContext` | `String` | contextGatherer, contextGate | — | questionGenerator, bundle builder |
+| `clarificationQuestions` | `List<String>` | questionGenerator | — | questionsGate, humanClarification |
+| `reviewerGuidance` | `String` | humanClarification and its gates | applyHumanFeedback | bundle builder, debaters, scorers, writer |
+| `reviewBundle` | `String` | reviewBundleBuilder | — | the reviewers and their fallbacks |
+| `usefulness` | `UsefulnessAssessment` | usefulnessAssessor | — | scorers, writer |
+| `panelOutputs` | `Map<String, Object>` | reviewPanel | — | coverageFloor, consolidator, assembler |
+| `correctnessFindings` … `docsFindings`, `chunkFindings` | `List<RawFinding>`, `List<List<RawFinding>>` | reviewers, fallbacks, chunked review | — | consolidator |
+| `findings` | `List<Finding>` | consolidator, debate steps, applyHumanFeedback | applyFinalFeedback | debate steps, active selector, humanApproval |
+| `activeFindings` | `List<Finding>` | activeFindingsSelector, applyFinalFeedback | — | scorers, calibrator, writer, critic, assembler |
+| `contestedFindings` | `List<Finding>` | — (scope) | consolidator, nextContested, budget guard, applyHumanFeedback | debate gate and loop, budget guard |
+| `contestedFinding`, `contestedDiff` | `Finding`, `String` | nextContested, projection | nextContested | debaters, judge, applyDebateVerdict |
+| `prosecution`, `defense`, `debateVerdict` | `String`, `String`, `DebateVerdict` | debaters, judge | nextContested (reset) | the debate, applyDebateVerdict |
+| `scoreCard`, `scoreVote1..3` | `ScoreCard` | scorer, voters, scoreVoting | — | voting gate, calibrator |
+| `scores`, `verdict`, `verdictReasoning` | `Scores`, `Verdict`, `String` | calibrator, projections | calibrator | writer, assembler, report loop |
+| `reportDraft`, `reviewReport`, `reportCritique` | `ReportDraft`, `ReviewReport`, `Critique` | writer/finalizer, assembler, critic | applyHumanFeedback (reset) | the report loop, approval, exporter |
+| `approval` | `ApprovalDecision` | approval agents | applyHumanFeedback (reset) | revision loop exit, feedback steps, finalizer gate |
+| `revisionRound`, `reportRound` | `Integer` | — (scope) | applyHumanFeedback; reportAssembler | assembler; report loop exit |
+| `limitations`, `degradedAgents` | `List<String>` | projection; — | five agents; error handler | writer, assembler, calibrator |
+| `finalReport` | `ReviewReport` | reportExporter (root output) | — | the caller |
 | `attempts.<agent>` | `Integer` | — (scope) | error handler | error handler |
 
 ---
@@ -303,28 +308,26 @@ lookups.
 | Method kind | Gets collaborators through |
 |---|---|
 | `@ChatModelSupplier` (per call; once at build time with every argument null) | `@CdiBean ModelCatalog` and `AgenticScope` parameters; at build time, the base tier from an `Arc` lookup |
-| `@ToolProviderSupplier` (once, at build time) | `@CdiBean GitHubTools` parameter |
+| `@ToolProviderSupplier` (once, at build time) | `@CdiBean GitHubMcp` parameter |
 | `@PlannerSupplier` (no-arg; once at build time and once per review) | `Arc`: `DecisionModels` and `ActiveReview`; configured defaults at build time |
 | `@ActivationCondition`, `@ExitCondition` | scope parameters, plus `Arc` for `ActiveReview` (cost cap) |
 | `@ErrorHandler` | `ErrorContext` only; per-review data comes from its scope |
 | `@HumanInTheLoop` static methods | `Arc`: `ActiveReview.console()` |
-| non-AI agents | `@ApplicationScoped` beans with instance `@Agent` methods and `@Inject` fields (6.3) |
+| non-AI agents | static `@Agent` methods with `Arc` lookups (6.3) |
 | listeners | they are CDI beans themselves |
 
-### 6.3 Non-AI agents as beans
+### 6.3 Non-AI agents stay static
 
-Today non-AI agents are classes with a static `@Agent` method. They become `@ApplicationScoped` beans with an instance
-`@Agent` method, still taking `AgenticScope` where they write side keys, and injecting what they need (`GitHubGateway`
-for prFetcher, `ActiveReview` for the exporter and the budget guard, configuration for the preprocessor's limits). The
-extension registers such classes as leaf agents and resolves them from CDI, but no test of the extension uses one as a
-sub-agent: the Phase 0 spike verifies it on prFetcher and one projection before the rest are converted. If it fails,
-they stay static and use `Arc` lookups.
+The plan was to turn non-AI agents into `@ApplicationScoped` beans with instance `@Agent` methods. The Phase 0 spike
+showed that langchain4j builds a class whose `@Agent` method is not static as an AI service, which Quarkus then refuses
+("not able to determine class as an AiService at build time"). They keep static methods and reach beans through
+`Arc` (`GitHubMcp.get()`, `ActiveReview.get()`, `ReviewDefaults.get()`); those beans are `@Unremovable`.
 
 ### 6.4 Tools and their budgets
 
-`GitHubTools` (`@ApplicationScoped`) builds an `McpToolProvider` over the selected GitHub MCP client, filtered to the
-read tools (`get_file_contents`, `search_code`, `get_commit`, `list_commits`, `issue_read`), and wraps it in a
-`BudgetedToolProvider`:
+`GitHubMcp.readTools(budget)` builds an `McpToolProvider` over the selected GitHub MCP client, filtered to the read
+tools (`get_file_contents`, `search_code`, `get_commit`, `list_commits`, `issue_read`), and wraps it in a
+`BudgetedToolProvider` (the separate `GitHubTools` bean of the first draft was folded into `GitHubMcp`):
 
 - langchain4j asks a tool provider for its tools on every agent call (`ToolService.createContext`), so the wrapper
   returns executors bound to a fresh counter per call;
@@ -359,6 +362,9 @@ Every model is a named configuration `<provider>-<tier>`, plus OpenAI variants f
 
 All with a 10-minute timeout. Anthropic: thinking blocks returned and sent back (`thinking.return-thinking`,
 `thinking.send-thinking`), `cache-system-messages` and `cache-tools`, no effort setting. OpenAI: strict JSON schemas.
+Native structured output: the configuration offers the JSON schema capability only together with a JSON response
+format, which would also apply to agents returning text, so `StructuredOutput` declares the capability with a
+`ModelBuilderCustomizer` per named model (a named model only gets customizers qualified with its name).
 Every named model also sets `quarkus.langchain4j.<name>.chat-model.provider`, because a model referenced only from a
 static supplier is not an injection point and would otherwise not be created.
 
@@ -404,7 +410,7 @@ config classes.
 `ModelCatalog` (`@ApplicationScoped`) returns `chatModel(provider, tier)` and `toolModel(provider, tier)` (the tool
 variant when configured, else the plain model) through `@Any Instance<ChatModel>` and `ModelName.Literal`.
 `ModelSelection` keeps its rule: a forced tier (`--model-tier`) wins; otherwise the base tier, escalated when the
-scope shows the trigger, unless the cost cap is reached. The provider comes from `Options` in the scope.
+scope shows the trigger, unless the cost cap is reached. The provider comes from `options` in the scope.
 
 | Agent | Base → escalated | Trigger |
 |---|---|---|
@@ -423,16 +429,15 @@ findingDefender, correctnessReviewerFallback, securityReviewerFallback.
 ### 7.3 Missing keys and the GitHub token
 
 A named Anthropic or OpenAI model fails application startup when its key is missing, and a hosted typesafe decision
-model does the same. `ReviewerConfigSource` (a `ConfigSource` with an ordinal above `application.properties`) fixes both
-ends:
+model does the same. Simpler than the `enable-integration` switch first planned, every key has a placeholder default
+(`${ANTHROPIC_API_KEY:missing}`), so startup always succeeds:
 
-- no `ANTHROPIC_API_KEY`: `enable-integration=false` for every `anthropic-*` name (the models become disabled models
-  that throw on use); same for OpenAI;
-- no `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY`: a placeholder key, so startup succeeds;
-- it publishes `reviewer.available.providers` and `reviewer.available.decision-models`: the web form offers only
-  those, and the CLI rejects the others with a message naming the missing variable;
-- `github.token`: `GITHUB_TOKEN`, else the output of `gh auth token`, computed when first read (the MCP client is
-  created lazily, so `completion` and `--help` never run `gh` or Docker).
+- `ModelCatalog.available(provider)` and `DecisionModels.available(provider)` check that the key is really set: the
+  web form offers only those, and the CLI rejects the others with a message naming the missing variable;
+- a call that still reaches a provider with the placeholder fails as an account problem and stops the run;
+- `ReviewerConfigSource` provides `github.token`: `GITHUB_TOKEN`, else the output of `gh auth token`; when neither
+  exists, `GitHubMcp` refuses to start the server and says how to set a token. The MCP client starts lazily, so
+  `completion` and `--help` never run Docker.
 
 ### 7.4 Decision models
 
@@ -466,7 +471,7 @@ quarkus.langchain4j.mcp.github-remote.tool-execution-timeout=60s
 The comma inside `GITHUB_TOOLSETS` must be escaped in the list; Phase 0 confirms the escaping with one logged start.
 MCP clients start lazily (the extension's own test proves an unused client never connects), so only the selected one
 runs. `GitHubMcp` (`@ApplicationScoped`) picks `github-local` or `github-remote` from `reviewer.mcp`;
-`GitHubGateway` (`PullRequestReader`) and `GitHubTools` use it.
+`GitHubMcp.gateway()` (for `PullRequestReader`) and `GitHubMcp.readTools(budget)` use it.
 
 ---
 
@@ -566,7 +571,7 @@ One `@ErrorHandler` on the root sees every agent's failure (the mapper's `_<n>` 
 | missing argument | throw: a wiring bug |
 | account problem: invalid key, unknown model, no credits or quota | throw at once: every later call would fail the same way |
 | transient (rate limit, overload, connection; not timeouts) | retry once, counted in `attempts.<agent>` |
-| reviewer, voter, debater, judge, writer, critic, triage, gatherer, router, … | neutral fallback, recorded in `DegradedAgents` and listed in the limitations |
+| reviewer, voter, debater, judge, writer, critic, triage, gatherer, router, … | neutral fallback, recorded in `degradedAgents` and listed in the limitations |
 | prFetcher, scorer, or anything without a fallback | throw |
 
 The account-problem test matches langchain4j's exception types. The Quarkus model clients run on Quarkus' REST client,
@@ -725,14 +730,15 @@ langchain4j-pr-reviewer/
     ├── PrReviewSystem.java    root @SequenceAgent (@BeforeCall defaults, @ErrorHandler)
     ├── RootErrorHandler.java
     ├── app/                   ReviewService, ActiveReview, ReviewRun, ReviewRequest, RunEvent
-    ├── cli/                   PrReviewerMain, PrReviewerApp, TopCommand, ReviewCommand, ServeCommand,
-    │                          EvalCommand (run, build-set), Completion, ConfigDefaultProvider
-    ├── web/                   ReviewResource, ReportResource, EventsResource, WebReviewerConsole, HostCheckFilter
-    ├── config/                ReviewerConfigSource
-    ├── keys/                  Keys (String constants), ScopeLists
+    ├── cli/                   PrReviewerMain, PrReviewerApp, PrReviewerCommand, ReviewCommand, ServeCommand,
+    │                          EvalCommand, Completion, ConfigDefaultProvider, ProgressPrinter, VersionProvider
+    ├── web/                   ReviewResource, ReportResource, ReviewQueue, WebRun, Interaction, WebReviewerConsole,
+    │                          ReportHistory, MarkdownRenderer, LocalRequestFilter, Pages, Views, Fragments
+    ├── config/                ReviewerConfig, ReviewDefaults, ReviewerConfigSource
+    ├── keys/                  Keys (String constants and their defaults), ScopeState
     ├── model/                 records and enums (ReviewOptions gains provider and decisionModel)
-    ├── models/                ModelCatalog, ModelSelection, Escalation, DecisionModels, Provider
-    ├── github/                GitHubMcp, GitHubGateway, PullRequestReader, GitHubTools, BudgetedToolProvider,
+    ├── models/                ModelCatalog, ModelSelection, DecisionModels, StructuredOutput, StatelessAgents
+    ├── github/                GitHubMcp, GitHubGateway, PullRequestReader, BudgetedToolProvider,
     │                          DiffParser, DiffPreprocessing, PrUrl
     ├── agents/                AI agent interfaces
     ├── workflow/              composed agents, non-AI agent beans, projections
@@ -741,8 +747,8 @@ src/main/resources/            application.properties, prompts/, templates/, MET
 ```
 
 Deleted: `AppContext`, `PrReviewSystems`, `AnthropicModels`, `OpenAiModels`, `EffortHttpClientBuilder`, `ChatModels`,
-`ChatModelProvider` (replaced by `Provider` and `ModelCatalog`), the client-building half of `GitHubMcp` and
-`DecisionModels`, `eval/*.sh`.
+`ChatModelProvider` (replaced by `ModelProvider`, `DecisionProvider` and `ModelCatalog`), the client-building half of
+`GitHubMcp` and `DecisionModels`, `eval/*.sh`.
 
 ### 18.2 Dependencies
 
@@ -805,7 +811,7 @@ commit and the spike a branch.
 | Phase | Deliverable | Verification |
 |---|---|---|
 | 0. Spike | Quarkus build with every extension; keys converted; projections and `ReportRound`; root injected; one non-AI agent and one projection as beans; scripted models through test producers. Checks: the validation passes (and the `DiffChunk` mapper item), non-AI beans work as sub-agents, CDI parameters on the model and tool suppliers, `AgentListener` beans notified once per invocation (not twice with `inheritedBySubagents`), native structured output for records on both providers, exception types for 401, 404 and credit errors, MCP command escaping and lazy start, startup without any key, the uber-jar runs, the first agent call on a virtual thread (quarkus-langchain4j issue #2593) | `mvn verify` green with one scripted end-to-end `@QuarkusTest`; a written list of check results, with the fallback chosen for any failed check |
-| 1. Core port | All agents converted; `ActiveReview`, `ReviewService`; `ModelCatalog`, `ModelSelection`, `DecisionModels`, `GitHubMcp`, `GitHubTools`, `BudgetedToolProvider`; `ReviewerConfigSource`; listeners as beans; old builders deleted; tests migrated | All unit and system tests green; `OpenAiReviewIT` and the router ITs green; cost of the OpenAI IT compared with the last run (COMMENT 8.2/10, $0.50) |
+| 1. Core port | All agents converted; `ActiveReview`, `ReviewService`; `ModelCatalog`, `ModelSelection`, `DecisionModels`, `GitHubMcp`, `BudgetedToolProvider`; `ReviewerConfigSource`; listeners as beans; old builders deleted; tests migrated | All unit and system tests green; `OpenAiReviewIT` and the router ITs green; cost of the OpenAI IT compared with the last run (COMMENT 8.2/10, $0.50) |
 | 2. CLI | `PrReviewerMain`, `PrReviewerApp`, commands, `ConfigDefaultProvider`, progress and summary output, completion, eval subcommands | CLI tests green; manual tab completion in bash and zsh; `review` while `serve` runs does not touch port 8080 |
 | 3. Web | Endpoints, templates, SSE, `WebReviewerConsole`, history, safety filters, CSS | Web tests green; manual run in a browser (light and dark): an AUTO review and an INTERACTIVE one with a contest |
 | 4. Distribution and docs | Uber-jar, `jbang-catalog.json`; README (quick start, CLI, web, completion, configuration); `docs/topology.html` and the README topology images updated with the new nodes; this plan's notes updated | `jbang app install` → `pr-reviewer --version` and `pr-reviewer review` on a public PR; completion works from the installed command; every README command executed once |
@@ -839,6 +845,33 @@ commit and the spike a branch.
 - Anthropic per-tier effort and `EffortHttpClientBuilder`.
 - Stub sub-agent tests (replaced by scripted models).
 - The `--pr` option and the `eval/*.sh` scripts.
+
+---
+
+### 21.4 Implementation notes (2026-10-15)
+
+Phases 0 to 4 are done on the `quarkus-port` branch, one commit each; 95 unit, orchestration, CLI and web tests pass,
+and the integration tests pass against the real services (GitHub MCP in Docker, local and hosted decision models,
+OpenAI, account errors).
+
+| Area | Plan | Implementation | Why |
+|---|---|---|---|
+| Validation | 7 projections | 9 new nodes: also `debateContext` (written by the debate planner) and the `diffChunk` declaration (mapper item) | The build reported both; the static check that replicates the validator listed them at once |
+| Non-AI agents | `@ApplicationScoped` beans | Static methods with `Arc` lookups | Spike: an instance `@Agent` method makes langchain4j build an AI service (6.3) |
+| Agent memory | Not planned | `StatelessAgents`: a `ChatMemoryProvider` whose memories keep nothing | Spike: Quarkus registers agents as AI services with the default memory provider; agents off the request context share memory id `default`, so parallel reviewers read the usefulness assessor's conversation. Quarkus still buffers one invocation's messages, so tool loops work |
+| Structured output | Response format per named model | `ModelBuilderCustomizer` per named model (7.1) | The config offers the capability only with a JSON default format |
+| Missing keys | ConfigSource toggling `enable-integration` | Placeholder keys plus availability checks (7.3) | Same effect, no config generation |
+| Tools | `GitHubTools` bean | `GitHubMcp.readTools(budget)` | One bean to replace in tests |
+| `null` scope writes | Unchanged | `ScopeState.reset` writes the key's default | With String keys a `null` value is a missing argument for the next reader |
+| Tests | Scripted models | Scripted models answer by agent (from `AgentAttribution`), then by prompt task | Fallback reviewers share the prompt of the main ones |
+| Integration tests | Real services | Test profiles exclude the test doubles with `quarkus.arc.exclude-types`; a test class extending a concrete `@QuarkusTest` is ambiguous, hence `AbstractReviewRouterIT` | Quarkus makes test classes beans |
+| CLI | As planned | Logs on stderr in the `cli` profile | Quarkus logged to stdout, which corrupted the completion script |
+| JBang | GAV with classifier | Works; the alias also passes the manifest's `Add-Opens` as `java-options` | JBang starts the jar from its class path, without the manifest's options |
+| Version | 1.15.0 final in Phase 4 | Still 1.15.0.CR1 | 1.15.0 is not released yet |
+
+Measured: `OpenAiReviewIT` on langchain4j PR 6600 gave `COMMENT` 8.2/10 for $0.28 (before the port: `COMMENT` 8.2/10,
+$0.50; the difference is the length of the large model's correctness review). Account errors from the Quarkus model
+clients (invalid key, unknown model, on both providers) are recognized by the error handler unchanged.
 
 ---
 

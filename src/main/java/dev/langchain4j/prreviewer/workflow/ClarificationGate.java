@@ -2,7 +2,6 @@ package dev.langchain4j.prreviewer.workflow;
 
 import dev.langchain4j.agentic.declarative.ActivationCondition;
 import dev.langchain4j.agentic.declarative.ConditionalAgent;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.prreviewer.keys.Keys;
 import dev.langchain4j.prreviewer.model.ReviewMode;
 
@@ -10,11 +9,11 @@ import dev.langchain4j.prreviewer.model.ReviewMode;
 public interface ClarificationGate {
 
     @ConditionalAgent(name = "clarificationGate", description = "Asks clarifications in interactive mode",
-            typedOutputKey = Keys.ReviewerGuidance.class, subAgents = Clarification.class)
-    String clarify(@K(Keys.Mode.class) ReviewMode mode);
+            outputKey = Keys.REVIEWER_GUIDANCE, subAgents = Clarification.class)
+    String clarify(ReviewMode mode);
 
     @ActivationCondition(value = Clarification.class, description = "interactive mode")
-    static boolean interactive(@K(Keys.Mode.class) ReviewMode mode) {
+    static boolean interactive(ReviewMode mode) {
         return mode == ReviewMode.INTERACTIVE;
     }
 }

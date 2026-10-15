@@ -3,10 +3,10 @@
 Check this review report before it is shown to the maintainers.
 
 The report:
-{{ReviewReport}}
+{{reviewReport}}
 
 The findings it is based on:
-{{ActiveFindings}}
+{{activeFindings}}
 
 Check that:
 - every point under "What is wrong" is one of the findings, and every CRITICAL or HIGH finding is there;

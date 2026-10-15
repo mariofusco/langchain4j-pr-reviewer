@@ -1,7 +1,6 @@
 package dev.langchain4j.prreviewer.github;
 
 import dev.langchain4j.agentic.Agent;
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.prreviewer.keys.Keys;
 import dev.langchain4j.prreviewer.model.DiffStats;
 import dev.langchain4j.prreviewer.model.PrSummary;
@@ -17,20 +16,19 @@ import java.util.Map;
 public class RoutingInputs {
 
     @Agent(name = "routingInputs", description = "Builds the compact, JSON-like input of the reviewer router",
-            typedOutputKey = Keys.RoutingInput.class)
-    public static Map<String, Object> build(@K(Keys.PrSummary.class) PrSummary summary,
-                                            @K(Keys.DiffStats.class) DiffStats stats) {
+            outputKey = Keys.ROUTING_INPUT)
+    public static Map<String, Object> build(PrSummary prSummary, DiffStats diffStats) {
         Map<String, Object> input = new LinkedHashMap<>();
-        input.put("intent", summary.intent());
-        input.put("category", summary.category().name());
-        input.put("size", summary.size().name());
-        input.put("risk", summary.risk().name());
-        input.put("productionCodeChanged", stats.productionCodeChanged());
-        input.put("testsChanged", stats.hasTests());
-        input.put("touchesSecuritySensitiveCode", stats.touchesSecuritySensitive());
-        input.put("touchesPublicApi", stats.touchesPublicApi());
-        input.put("documentationOnly", stats.documentationOnly());
-        input.put("touchesBuildFiles", stats.touchesBuild());
+        input.put("intent", prSummary.intent());
+        input.put("category", prSummary.category().name());
+        input.put("size", prSummary.size().name());
+        input.put("risk", prSummary.risk().name());
+        input.put("productionCodeChanged", diffStats.productionCodeChanged());
+        input.put("testsChanged", diffStats.hasTests());
+        input.put("touchesSecuritySensitiveCode", diffStats.touchesSecuritySensitive());
+        input.put("touchesPublicApi", diffStats.touchesPublicApi());
+        input.put("documentationOnly", diffStats.documentationOnly());
+        input.put("touchesBuildFiles", diffStats.touchesBuild());
         return input;
     }
 }

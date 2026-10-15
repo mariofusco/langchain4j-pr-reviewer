@@ -15,7 +15,7 @@ import dev.langchain4j.prreviewer.model.Severity;
 import dev.langchain4j.prreviewer.model.Verdict;
 import dev.langchain4j.prreviewer.model.Verification;
 import dev.langchain4j.prreviewer.scoring.Caps;
-import dev.langchain4j.prreviewer.support.StubAgents;
+import dev.langchain4j.prreviewer.support.TestData;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class ReportRendererTest {
                 finding("F2", Severity.MEDIUM, Verification.UNSURE), finding("F3", Severity.LOW, Verification.UNVERIFIED));
         ReportDraft draft = new ReportDraft("Summary.", List.of("Good."), List.of("F2", "F9"), List.of("Follow up."),
                 List.of("Writer limitation."));
-        Scores scores = new Scores(Caps.apply(StubAgents.card(6.0, Verdict.COMMENT).metrics(), List.of(), null, null).metrics(),
+        Scores scores = new Scores(Caps.apply(TestData.card(6.0, Verdict.COMMENT).metrics(), List.of(), null, null).metrics(),
                 6.0, 0.8);
         RunInfo run = new RunInfo(ReviewMode.AUTO, List.of("correctnessReviewer"), Map.of("correctnessReviewer",
                 "claude-sonnet-5-5"), 0.42, 0);

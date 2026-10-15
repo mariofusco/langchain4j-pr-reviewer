@@ -10,11 +10,13 @@ import dev.langchain4j.exception.ModelNotFoundException;
 import dev.langchain4j.exception.RetriableException;
 import dev.langchain4j.exception.TimeoutException;
 import dev.langchain4j.prreviewer.keys.Keys;
-import dev.langchain4j.prreviewer.keys.ScopeLists;
+import dev.langchain4j.prreviewer.keys.ScopeState;
 import dev.langchain4j.prreviewer.model.DebateOutcome;
 import dev.langchain4j.prreviewer.model.DebateVerdict;
+import dev.langchain4j.prreviewer.model.DiffStats;
 import dev.langchain4j.prreviewer.model.Finding;
 import dev.langchain4j.prreviewer.model.PrSummary;
+import dev.langchain4j.prreviewer.model.PullRequest;
 import dev.langchain4j.prreviewer.model.ReportDraft;
 import dev.langchain4j.prreviewer.model.Severity;
 import dev.langchain4j.prreviewer.model.UsefulnessAssessment;
@@ -70,7 +72,7 @@ public final class RootErrorHandler {
             return ErrorRecoveryResult.throwException();
         }
         LOG.warn("Agent '{}' failed and is replaced by a fallback: {}", agent, rootMessage(error));
-        ScopeLists.append(scope, Keys.DegradedAgents.class, agent);
+        ScopeState.append(scope, Keys.DEGRADED_AGENTS, agent);
         return ErrorRecoveryResult.result(fallback);
     }
 
@@ -80,7 +82,7 @@ public final class RootErrorHandler {
             return List.of();
         }
         if (VOTERS.contains(agent)) {
-            return scope.readState(Keys.ScoreCard.class);
+            return ScopeState.read(scope, Keys.SCORE_CARD);
         }
         return switch (agent) {
             case "prTriage" -> triageFallback(scope);
@@ -94,15 +96,15 @@ public final class RootErrorHandler {
             case "debateJudge", "findingDebate" -> unsure(scope);
             case "reportWriter" -> writerFallback(scope);
             case "reportCritic" -> new dev.langchain4j.prreviewer.model.Critique(1.0, List.of());
-            case "reportFinalizer" -> scope.readState(Keys.ReportDraft.class);
+            case "reportFinalizer" -> ScopeState.read(scope, Keys.REPORT_DRAFT);
             default -> null;
         };
     }
 
     /** Without a triage the review goes on with neutral assumptions derived from the diff statistics. */
     private static PrSummary triageFallback(AgenticScope scope) {
-        var pr = scope.readState(Keys.PullRequest.class);
-        var stats = scope.readState(Keys.DiffStats.class);
+        PullRequest pr = ScopeState.read(scope, Keys.PULL_REQUEST);
+        DiffStats stats = ScopeState.read(scope, Keys.DIFF_STATS);
         int changed = stats == null ? 0 : stats.additions() + stats.deletions();
         var size = changed < 100 ? dev.langchain4j.prreviewer.model.Size.SMALL
                 : changed < 500 ? dev.langchain4j.prreviewer.model.Size.MEDIUM
@@ -112,13 +114,13 @@ public final class RootErrorHandler {
     }
 
     private static DebateVerdict unsure(AgenticScope scope) {
-        Finding finding = scope.readState(Keys.ContestedFinding.class);
+        Finding finding = ScopeState.read(scope, Keys.CONTESTED_FINDING);
         Severity severity = finding == null ? null : finding.severity();
         return new DebateVerdict(DebateOutcome.UNSURE, severity, "The debate could not be completed.");
     }
 
     private static ReportDraft writerFallback(AgenticScope scope) {
-        List<Finding> findings = scope.readState(Keys.ActiveFindings.class);
+        List<Finding> findings = ScopeState.read(scope, Keys.ACTIVE_FINDINGS);
         return new ReportDraft("The report writer failed; the findings, scores and verdict below are complete, "
                 + "but this summary is not.", List.of(), findings.stream().map(Finding::id).toList(), List.of(),
                 List.of("The prose of this report could not be written."));

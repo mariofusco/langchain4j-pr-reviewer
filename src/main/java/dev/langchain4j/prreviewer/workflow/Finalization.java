@@ -1,6 +1,5 @@
 package dev.langchain4j.prreviewer.workflow;
 
-import dev.langchain4j.agentic.declarative.K;
 import dev.langchain4j.agentic.declarative.SequenceAgent;
 import dev.langchain4j.prreviewer.agents.ReportFinalizer;
 import dev.langchain4j.prreviewer.hitl.ApplyFinalFeedback;
@@ -13,7 +12,7 @@ import dev.langchain4j.prreviewer.scoring.ScoreCalibrator;
 public interface Finalization {
 
     @SequenceAgent(name = "finalization", description = "Applies the human reviewer's final edits",
-            typedOutputKey = Keys.ReviewReport.class,
+            outputKey = Keys.REVIEW_REPORT,
             subAgents = {ApplyFinalFeedback.class, ScoreCalibrator.class, ReportFinalizer.class, ReportAssembler.class})
-    ReviewReport finalizeReport(@K(Keys.Approval.class) ApprovalDecision approval);
+    ReviewReport finalizeReport(ApprovalDecision approval);
 }

@@ -1,0 +1,15 @@
+{#include layout}
+{#title}{page.pr}{/title}
+<section class="card">
+  <p class="report-head">
+    <span class="badge {page.verdict}">{page.verdict}</span>
+    <b>{page.overall}/10</b> <span class="muted">confidence {page.confidence}{#if page.cost} · ${page.cost}{/if}</span>
+  </p>
+  <p class="files">
+    <a href="/reports/{page.directory}/report.md">report.md</a> ·
+    <a href="/reports/{page.directory}/report.json">report.json</a>{#if page.hasTrace} ·
+    <a href="/reports/{page.directory}/trace.html" target="_blank" rel="noopener">trace</a>{/if}
+  </p>
+  <article class="report">{page.html.raw}</article>
+</section>
+{/include}

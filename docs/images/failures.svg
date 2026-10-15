@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 480" width="860" height="480" role="img" aria-label="Failures: every agent of the tree reports its exceptions to the single RootErrorHandler, which stops the run on a wiring bug or an account problem, retries a transient failure once, otherwise replaces the agent&#x27;s output with a neutral fallback recorded in DegradedAgents and disclosed in the report, and stops the run when the agent has none.">
-<title>Failures: every agent of the tree reports its exceptions to the single RootErrorHandler, which stops the run on a wiring bug or an account problem, retries a transient failure once, otherwise replaces the agent's output with a neutral fallback recorded in DegradedAgents and disclosed in the report, and stops the run when the agent has none.</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 480" width="860" height="480" role="img" aria-label="Failures: every agent of the tree reports its exceptions to the single RootErrorHandler, which stops the run on a wiring bug or an account problem, retries a transient failure once, otherwise replaces the agent&#x27;s output with a neutral fallback recorded in degradedAgents and disclosed in the report, and stops the run when the agent has none.">
+<title>Failures: every agent of the tree reports its exceptions to the single RootErrorHandler, which stops the run on a wiring bug or an account problem, retries a transient failure once, otherwise replaces the agent's output with a neutral fallback recorded in degradedAgents and disclosed in the report, and stops the run when the agent has none.</title>
 <style>
 .bg{fill:#ffffff}
 text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;font-size:11px;fill:#1f2328}
@@ -94,7 +94,7 @@ text{fill:#e6edf3}
 <polyline points="566,283 626,283" class="e" marker-end="url(#a)"/>
 <text x="632" y="287" class="h">stop the run</text>
 <polyline points="716,229 800,229 800,338" class="e" marker-end="url(#a)"/>
-<text x="794" y="322" class="l" text-anchor="end">DegradedAgents</text>
+<text x="794" y="322" class="l" text-anchor="end">degradedAgents</text>
 <rect x="20" y="340" width="820" height="104" rx="4" class="lane"/>
 <text x="430" y="395.5" class="n" text-anchor="middle"></text>
 <text x="32" y="360" class="h">fallbacks, listed among the report's limitations</text>

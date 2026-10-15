@@ -1,0 +1,13 @@
+<p class="status">
+  <span class="badge {run.status.name}">{run.status.label}</span>
+  <span class="muted">${run.costUsd} spent</span>
+  {#if run.reportDirectory}<a class="button" href="/reports/{run.reportDirectory}">Open the report</a>{/if}
+</p>
+{#if run.error}<p class="error">{run.error}</p>{/if}
+{#if run.status.name == 'REJECTED'}<p class="muted">You rejected the report: only the trace was written.</p>{/if}
+{#if run.status.name == 'QUEUED'}
+<form method="post" action="/reviews/{run.id}/cancel" class="inline">
+  <input type="hidden" name="{inject:csrf.parameterName}" value="{inject:csrf.token}">
+  <button class="link">cancel this review</button>
+</form>
+{/if}

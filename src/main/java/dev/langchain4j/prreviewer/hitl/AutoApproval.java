@@ -8,7 +8,7 @@ import dev.langchain4j.prreviewer.model.ApprovalDecision;
 public class AutoApproval {
 
     @Agent(name = "autoApproval", description = "Approves the report in automatic mode",
-            typedOutputKey = Keys.Approval.class)
+            outputKey = Keys.APPROVAL)
     public static ApprovalDecision approve() {
         return ApprovalDecision.approved();
     }

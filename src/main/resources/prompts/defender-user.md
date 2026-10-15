@@ -3,18 +3,18 @@
 Argue that the following finding is a false positive or overrated.
 
 The finding:
-{{ContestedFinding}}
+{{contestedFinding}}
 
 Pull request overview:
-{{PrOverview}}
+{{prOverview}}
 
 The changes of the file concerned (lines prefixed with + are added, - removed; the number is the line in the new file):
 <diff>
-{{ContestedDiff}}
+{{contestedDiff}}
 </diff>
 
 Guidance from the human reviewer, if any:
-{{ReviewerGuidance}}
+{{reviewerGuidance}}
 
 The debate so far, empty in the first round:
 {{debateContext}}

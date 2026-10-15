@@ -74,6 +74,7 @@ text{fill:#e6edf3}
 <text x="630" y="275" class="p" text-anchor="end">@LoopAgent · one finding per iteration</text>
 <rect x="66" y="330" width="112" height="28" rx="4" class="box code"/>
 <text x="122" y="347.5" class="n" text-anchor="middle">nextContested</text>
+<text x="140" y="453" class="s">before the debate, the projections contestedDiff and debateContext</text>
 <rect x="196" y="290" width="280" height="132" rx="6" class="grp acc"/>
 <text x="206" y="307" class="n h">findingDebate</text>
 <text x="466" y="307" class="p" text-anchor="end">@PlannerAgent · DebatePlanner</text>
@@ -105,7 +106,7 @@ text{fill:#e6edf3}
 <polyline points="656,258 666,258" class="e" marker-end="url(#a)"/>
 <polyline points="750,280 750,318" class="e" marker-end="url(#a)"/>
 <polyline points="750,364 750,412" class="e" marker-end="url(#a)"/>
-<text x="750" y="428" class="h" text-anchor="middle">ActiveFindings</text>
+<text x="750" y="428" class="h" text-anchor="middle">activeFindings</text>
 <text x="750" y="442" class="s" text-anchor="middle">to the scorer</text>
 <rect x="20" y="503" width="22" height="12" rx="3" class="box"/>
 <text x="48" y="513" class="s">AI agent</text>
