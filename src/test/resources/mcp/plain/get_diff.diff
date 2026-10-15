@@ -1,0 +1,443 @@
+diff --git a/langchain4j/src/main/java/dev/langchain4j/service/AiServiceValidation.java b/langchain4j/src/main/java/dev/langchain4j/service/AiServiceValidation.java
+index 4a0de5556b0..e917910c5de 100644
+--- a/langchain4j/src/main/java/dev/langchain4j/service/AiServiceValidation.java
++++ b/langchain4j/src/main/java/dev/langchain4j/service/AiServiceValidation.java
+@@ -57,9 +57,22 @@ static void validate(AiServiceContext context) {
+         validateContextMemory(serviceClass, context.hasChatMemory());
+         validateClass(serviceClass);
+         Stream.of(serviceClass.getMethods())
++                .filter(AiServiceValidation::isImplementedByModel)
+                 .forEach(m -> validateMethod(serviceClass, m, context.hasChatMemory(), context.hasModerationModel()));
+     }
+ 
++    /**
++     * Whether the AI Service implements this method by calling the model.
++     * Static and default methods run as written, {@link Object} and {@link ChatMemoryAccess} methods
++     * are handled by the proxy itself.
++     */
++    static boolean isImplementedByModel(Method method) {
++        return !isStatic(method.getModifiers())
++                && !method.isDefault()
++                && method.getDeclaringClass() != Object.class
++                && method.getDeclaringClass() != ChatMemoryAccess.class;
++    }
++
+     private static void validateContextMemory(Class<?> serviceClass, boolean hasChatMemory) {
+         if (!hasChatMemory && ChatMemoryAccess.class.isAssignableFrom(serviceClass)) {
+             throw illegalConfiguration(
+@@ -77,10 +90,6 @@ private static void validateClass(Class<?> serviceClass) {
+ 
+     private static void validateMethod(
+             Class<?> serviceClass, Method method, boolean hasChatMemory, boolean hasModerationModel) {
+-        if (isStatic(method.getModifiers()) || method.isDefault()) {
+-            return; // static and default methods are not implemented by the AI Service, they are invoked as-is
+-        }
+-
+         if (!hasModerationModel && method.isAnnotationPresent(Moderate.class)) {
+             throw illegalConfiguration("The @Moderate annotation is present, but the moderationModel is not set up. "
+                     + "Please ensure a valid moderationModel is configured before using the @Moderate annotation.");
+diff --git a/langchain4j/src/main/java/dev/langchain4j/service/DefaultAiServices.java b/langchain4j/src/main/java/dev/langchain4j/service/DefaultAiServices.java
+index 6292a65c510..c48ccaf3f3c 100644
+--- a/langchain4j/src/main/java/dev/langchain4j/service/DefaultAiServices.java
++++ b/langchain4j/src/main/java/dev/langchain4j/service/DefaultAiServices.java
+@@ -14,6 +14,7 @@
+ import static dev.langchain4j.model.output.FinishReason.TOOL_EXECUTION;
+ import static dev.langchain4j.service.AiServiceParamsUtil.chatRequestParameters;
+ import static dev.langchain4j.service.AiServiceParamsUtil.findArgumentOfType;
++import static dev.langchain4j.service.AiServiceValidation.isImplementedByModel;
+ import static dev.langchain4j.service.AiServiceValidation.validateParameters;
+ import static dev.langchain4j.service.IllegalConfigurationException.illegalConfiguration;
+ import static dev.langchain4j.service.TypeUtils.getRawClass;
+@@ -95,6 +96,7 @@
+ import java.util.concurrent.Flow;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.stream.Collectors;
++import java.util.stream.Stream;
+ 
+ @Internal
+ class DefaultAiServices<T> extends AiServices<T> {
+@@ -121,6 +123,25 @@ protected void validate() {
+         AiServiceValidation.validate(context);
+     }
+ 
++    private Object invokeImplementedByProxy(Object proxy, Method method, Object[] args) throws Throwable {
++        if (method.isDefault()) {
++            return InvocationHandler.invokeDefault(proxy, method, args);
++        }
++        if (method.getDeclaringClass() == Object.class) {
++            return switch (method.getName()) {
++                case "equals" -> proxy == args[0];
++                case "hashCode" -> System.identityHashCode(proxy);
++                case "toString" ->
++                    context.aiServiceClass.getName() + "@" + Integer.toHexString(System.identityHashCode(proxy));
++                default -> throw new IllegalStateException("Unexpected Object method: " + method);
++            };
++        }
++        if (method.getDeclaringClass() == ChatMemoryAccess.class) {
++            return handleChatMemoryAccess(method, args);
++        }
++        throw new IllegalStateException("Unexpected method: " + method);
++    }
++
+     private Object handleChatMemoryAccess(Method method, Object[] args) {
+         return switch (method.getName()) {
+             case "getChatMemory" -> context.chatMemoryService.getChatMemory(args[0]);
+@@ -161,9 +182,19 @@ private boolean isAsynchronousOrReactive(Type returnType) {
+                 || findPublisherAdapter(returnType) != null;
+     }
+ 
++    /**
++     * Whether the AI Service has a method that calls the model and returns neither an asynchronous
++     * nor a reactive type.
++     */
++    boolean hasBlockingMethod() {
++        return Stream.of(context.aiServiceClass.getMethods())
++                .filter(AiServiceValidation::isImplementedByModel)
++                .anyMatch(method -> !isAsynchronousOrReactive(method.getGenericReturnType()));
++    }
++
+     public T build() {
+         validate();
+-        ToolErrorHandlingNotice.logOnceIfNeeded(context, this::isAsynchronousOrReactive);
++        ToolErrorHandlingNotice.logOnceIfNeeded(context, this::hasBlockingMethod);
+ 
+         context.streamingBufferSize = ensureGreaterThanZero(
+                 getOrDefault(context.streamingBufferSize, AiServiceStreamingEventPublisher.DEFAULT_BUFFER_SIZE),
+@@ -176,26 +207,8 @@ public T build() {
+ 
+                     @Override
+                     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+-                        if (method.isDefault()) {
+-                            return InvocationHandler.invokeDefault(proxy, method, args);
+-                        }
+-
+-                        if (method.getDeclaringClass() == Object.class) {
+-                            switch (method.getName()) {
+-                                case "equals":
+-                                    return proxy == args[0];
+-                                case "hashCode":
+-                                    return System.identityHashCode(proxy);
+-                                case "toString":
+-                                    return context.aiServiceClass.getName() + "@"
+-                                            + Integer.toHexString(System.identityHashCode(proxy));
+-                                default:
+-                                    throw new IllegalStateException("Unexpected Object method: " + method);
+-                            }
+-                        }
+-
+-                        if (method.getDeclaringClass() == ChatMemoryAccess.class) {
+-                            return handleChatMemoryAccess(method, args);
++                        if (!isImplementedByModel(method)) {
++                            return invokeImplementedByProxy(proxy, method, args);
+                         }
+ 
+                         // TODO do it once, when creating AI Service?
+diff --git a/langchain4j/src/main/java/dev/langchain4j/service/ToolErrorHandlingNotice.java b/langchain4j/src/main/java/dev/langchain4j/service/ToolErrorHandlingNotice.java
+index 66325764e71..c1a3e0a34a6 100644
+--- a/langchain4j/src/main/java/dev/langchain4j/service/ToolErrorHandlingNotice.java
++++ b/langchain4j/src/main/java/dev/langchain4j/service/ToolErrorHandlingNotice.java
+@@ -1,16 +1,10 @@
+ package dev.langchain4j.service;
+ 
+-import static java.lang.reflect.Modifier.isStatic;
+-
+-import dev.langchain4j.service.memory.ChatMemoryAccess;
+ import dev.langchain4j.service.tool.ToolService;
+-import java.lang.reflect.Method;
+-import java.lang.reflect.Type;
+-import java.lang.reflect.Type;
+ import java.util.ArrayList;
+ import java.util.List;
+-import java.util.function.Predicate;
+ import java.util.concurrent.atomic.AtomicBoolean;
++import java.util.function.BooleanSupplier;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -29,7 +23,6 @@ class ToolErrorHandlingNotice {
+ 
+     private static final Logger log = LoggerFactory.getLogger(ToolErrorHandlingNotice.class);
+ 
+-
+     /**
+      * Package-private so that tests can log the notice more than once per JVM.
+      */
+@@ -37,11 +30,11 @@ class ToolErrorHandlingNotice {
+ 
+     private ToolErrorHandlingNotice() {}
+ 
+-    static void logOnceIfNeeded(AiServiceContext context, Predicate<Type> asynchronousOrReactive) {
++    static void logOnceIfNeeded(AiServiceContext context, BooleanSupplier hasBlockingMethod) {
+         if (ALREADY_LOGGED.get()) {
+             return;
+         }
+-        List<Default> unconfirmedDefaults = unconfirmedDefaults(context, asynchronousOrReactive);
++        List<Default> unconfirmedDefaults = unconfirmedDefaults(context, hasBlockingMethod);
+         if (unconfirmedDefaults.isEmpty()) {
+             return;
+         }
+@@ -54,11 +47,11 @@ static void logOnceIfNeeded(AiServiceContext context, Predicate<Type> asynchrono
+     /**
+      * The defaults this AI Service relies on without having chosen them explicitly.
+      */
+-    static List<Default> unconfirmedDefaults(AiServiceContext context, Predicate<Type> asynchronousOrReactive) {
++    static List<Default> unconfirmedDefaults(AiServiceContext context, BooleanSupplier hasBlockingMethod) {
+         ToolService toolService = context.toolService;
+         boolean hasTools =
+                 !toolService.toolSpecifications().isEmpty() || !toolService.toolProviders().isEmpty();
+-        if (!hasTools || !hasBlockingMethod(context.aiServiceClass, asynchronousOrReactive)) {
++        if (!hasTools || !hasBlockingMethod.getAsBoolean()) {
+             return List.of();
+         }
+ 
+@@ -72,22 +65,6 @@ static List<Default> unconfirmedDefaults(AiServiceContext context, Predicate<Typ
+         return defaults;
+     }
+ 
+-    private static boolean hasBlockingMethod(Class<?> aiServiceClass, Predicate<Type> asynchronousOrReactive) {
+-        for (Method method : aiServiceClass.getMethods()) {
+-            if (isStatic(method.getModifiers())
+-                    || method.isDefault()
+-                    || method.getDeclaringClass() == Object.class
+-                    || method.getDeclaringClass() == ChatMemoryAccess.class) {
+-                continue;
+-            }
+-            if (!asynchronousOrReactive.test(method.getGenericReturnType())) {
+-                return true;
+-            }
+-        }
+-        return false;
+-    }
+-
+-
+     static String message(Class<?> aiServiceClass, List<Default> unconfirmedDefaults) {
+         StringBuilder message = new StringBuilder()
+                 .append("AI Service '")
+diff --git a/langchain4j/src/test/java/dev/langchain4j/service/AiServiceValidationTest.java b/langchain4j/src/test/java/dev/langchain4j/service/AiServiceValidationTest.java
+index 74746cef787..f91f10252f8 100644
+--- a/langchain4j/src/test/java/dev/langchain4j/service/AiServiceValidationTest.java
++++ b/langchain4j/src/test/java/dev/langchain4j/service/AiServiceValidationTest.java
+@@ -11,13 +11,16 @@
+ import dev.langchain4j.data.message.ImageContent;
+ import dev.langchain4j.data.message.UserMessage;
+ import dev.langchain4j.data.segment.TextSegment;
++import dev.langchain4j.memory.chat.MessageWindowChatMemory;
+ import dev.langchain4j.model.chat.ChatModel;
+ import dev.langchain4j.model.chat.mock.ChatModelMock;
+ import dev.langchain4j.model.chat.response.ChatResponse;
+ import dev.langchain4j.model.output.Response;
+ import dev.langchain4j.model.output.TokenUsage;
++import dev.langchain4j.service.memory.ChatMemoryAccess;
+ import java.util.List;
+ import java.util.Set;
++import org.junit.jupiter.api.Test;
+ import org.junit.jupiter.params.ParameterizedTest;
+ import org.junit.jupiter.params.provider.ValueSource;
+ 
+@@ -169,6 +172,15 @@ default Result<ChatResponse> notAnAiServiceMethod() {
+         }
+     }
+ 
++    interface WithStaticMethodReturningLangChain4jType {
++
++        String chat(String userMessage);
++
++        static Result<ChatResponse> notAnAiServiceMethod() {
++            return null;
++        }
++    }
++
+     @ParameterizedTest
+     @ValueSource(
+             classes = {
+@@ -186,11 +198,26 @@ default Result<ChatResponse> notAnAiServiceMethod() {
+                 WithResponse.class,
+                 WithImage.class,
+                 WithImageContentList.class,
+-                WithDefaultMethodReturningLangChain4jType.class
++                WithDefaultMethodReturningLangChain4jType.class,
++                WithStaticMethodReturningLangChain4jType.class
+             })
+     void should_allow_supported_return_types(Class<?> aiServiceClass) {
+         assertThatCode(() ->
+                         AiServices.builder(aiServiceClass).chatModel(CHAT_MODEL).build())
+                 .doesNotThrowAnyException();
+     }
++
++    interface WithChatMemoryAccess extends ChatMemoryAccess {
++
++        String chat(@MemoryId String memoryId, @dev.langchain4j.service.UserMessage String userMessage);
++    }
++
++    @Test
++    void should_not_validate_ChatMemoryAccess_methods_as_AI_Service_methods() {
++        assertThatCode(() -> AiServices.builder(WithChatMemoryAccess.class)
++                        .chatModel(CHAT_MODEL)
++                        .chatMemoryProvider(memoryId -> MessageWindowChatMemory.withMaxMessages(10))
++                        .build())
++                .doesNotThrowAnyException();
++    }
+ }
+diff --git a/langchain4j/src/test/java/dev/langchain4j/service/AiServicesTest.java b/langchain4j/src/test/java/dev/langchain4j/service/AiServicesTest.java
+index 527d0ced904..8fabf7b78d7 100644
+--- a/langchain4j/src/test/java/dev/langchain4j/service/AiServicesTest.java
++++ b/langchain4j/src/test/java/dev/langchain4j/service/AiServicesTest.java
+@@ -4,14 +4,19 @@
+ import static dev.langchain4j.data.message.UserMessage.userMessage;
+ import static org.assertj.core.api.Assertions.assertThat;
+ import static org.assertj.core.api.Assertions.assertThatThrownBy;
++import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.Mockito.mock;
+ import static org.mockito.Mockito.spy;
++import static org.mockito.Mockito.times;
+ import static org.mockito.Mockito.verify;
+ import static org.mockito.Mockito.verifyNoInteractions;
+ 
++import dev.langchain4j.memory.ChatMemory;
++import dev.langchain4j.memory.chat.MessageWindowChatMemory;
+ import dev.langchain4j.model.chat.ChatModel;
+ import dev.langchain4j.model.chat.mock.ChatModelMock;
+ import dev.langchain4j.model.chat.request.ChatRequest;
++import dev.langchain4j.service.memory.ChatMemoryAccess;
+ import org.junit.jupiter.api.Test;
+ 
+ class AiServicesTest {
+@@ -65,6 +70,34 @@ void test_default_method_throwing_exception() {
+         verifyNoInteractions(chatModel);
+     }
+ 
++    interface AssistantWithMemoryAccess extends ChatMemoryAccess {
++
++        String chat(@MemoryId String memoryId, @UserMessage String message);
++    }
++
++    @Test
++    void should_not_call_chatModel_when_ChatMemoryAccess_methods_are_called() {
++
++        // given
++        ChatModel chatModel = spy(ChatModelMock.thatAlwaysResponds("Hi"));
++        AssistantWithMemoryAccess assistant = AiServices.builder(AssistantWithMemoryAccess.class)
++                .chatModel(chatModel)
++                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.withMaxMessages(10))
++                .build();
++        assistant.chat("known", "Hello");
++
++        // when
++        ChatMemory knownMemory = assistant.getChatMemory("known");
++        boolean knownEvicted = assistant.evictChatMemory("known");
++
++        // then
++        assertThat(knownMemory.messages()).hasSize(2);
++        assertThat(knownEvicted).isTrue();
++        assertThat(assistant.getChatMemory("known")).isNull();
++        assertThat(assistant.evictChatMemory("unknown")).isFalse();
++        verify(chatModel, times(1)).chat(any(ChatRequest.class));
++    }
++
+     @Test
+     void test_getClass() {
+         // dynamic proxies don't intercept final methods
+diff --git a/langchain4j/src/test/java/dev/langchain4j/service/ToolErrorHandlingNoticeTest.java b/langchain4j/src/test/java/dev/langchain4j/service/ToolErrorHandlingNoticeTest.java
+index 820254bcb6c..f5c2821f14d 100644
+--- a/langchain4j/src/test/java/dev/langchain4j/service/ToolErrorHandlingNoticeTest.java
++++ b/langchain4j/src/test/java/dev/langchain4j/service/ToolErrorHandlingNoticeTest.java
+@@ -10,12 +10,8 @@
+ import dev.langchain4j.service.tool.ToolExecutionErrorHandler;
+ import dev.langchain4j.service.memory.ChatMemoryAccess;
+ import dev.langchain4j.service.tool.ToolProviderResult;
+-import java.lang.reflect.Type;
+ import java.util.List;
+ import java.util.concurrent.CompletableFuture;
+-import java.util.concurrent.CompletionStage;
+-import java.util.concurrent.Flow;
+-import java.util.function.Predicate;
+ import org.junit.jupiter.api.Test;
+ 
+ /**
+@@ -46,15 +42,6 @@ interface AsyncAssistantWithMemoryAccess extends ChatMemoryAccess {
+         CompletableFuture<String> chat(String userMessage);
+     }
+ 
+-    /**
+-     * What {@code DefaultAiServices} passes in, without the third-party adapters that are not on the
+-     * test classpath.
+-     */
+-    private static final Predicate<Type> ASYNCHRONOUS = returnType ->
+-            TypeUtils.typeHasRawClass(returnType, CompletableFuture.class)
+-                    || TypeUtils.typeHasRawClass(returnType, CompletionStage.class)
+-                    || TypeUtils.typeHasRawClass(returnType, Flow.Publisher.class);
+-
+     static class Tools {
+ 
+         @Tool("Returns the weather in the given city")
+@@ -105,7 +92,7 @@ void should_not_warn_when_both_error_handlers_are_configured() {
+         context.toolService.argumentsErrorHandler(ToolArgumentsErrorHandler.sendExceptionMessageToLlm());
+         context.toolService.executionErrorHandler(ToolExecutionErrorHandler.failInvocation());
+ 
+-        assertThat(ToolErrorHandlingNotice.unconfirmedDefaults(context, ASYNCHRONOUS)).isEmpty();
++        assertThat(unconfirmedDefaults(context)).isEmpty();
+     }
+ 
+     @Test
+@@ -114,7 +101,7 @@ void should_warn_only_about_the_handler_that_is_missing() {
+         AiServiceContext context = withTools(Assistant.class);
+         context.toolService.executionErrorHandler(ToolExecutionErrorHandler.failInvocation());
+ 
+-        assertThat(ToolErrorHandlingNotice.unconfirmedDefaults(context, ASYNCHRONOUS)).containsExactly(TOOL_ARGUMENTS_ERROR);
++        assertThat(unconfirmedDefaults(context)).containsExactly(TOOL_ARGUMENTS_ERROR);
+     }
+ 
+     @Test
+@@ -122,7 +109,7 @@ void should_not_warn_when_no_tools_are_configured() {
+ 
+         AiServiceContext context = AiServiceContext.create(Assistant.class);
+ 
+-        assertThat(ToolErrorHandlingNotice.unconfirmedDefaults(context, ASYNCHRONOUS)).isEmpty();
++        assertThat(unconfirmedDefaults(context)).isEmpty();
+     }
+ 
+     @Test
+@@ -132,7 +119,7 @@ void should_warn_when_only_a_tool_provider_is_configured() {
+         context.toolService.toolProvider(
+                 request -> ToolProviderResult.builder().build());
+ 
+-        assertThat(ToolErrorHandlingNotice.unconfirmedDefaults(context, ASYNCHRONOUS))
++        assertThat(unconfirmedDefaults(context))
+                 .as("tools supplied by a ToolProvider are only known at invocation time, but the defaults still apply")
+                 .containsExactly(TOOL_ARGUMENTS_ERROR, TOOL_EXECUTION_ERROR);
+     }
+@@ -140,7 +127,7 @@ void should_warn_when_only_a_tool_provider_is_configured() {
+     @Test
+     void should_not_warn_when_all_methods_are_asynchronous() {
+ 
+-        assertThat(ToolErrorHandlingNotice.unconfirmedDefaults(withTools(AsyncAssistant.class), ASYNCHRONOUS))
++        assertThat(unconfirmedDefaults(withTools(AsyncAssistant.class)))
+                 .as("asynchronous and reactive modes already behave the way the defaults are planned to behave")
+                 .isEmpty();
+     }
+@@ -148,10 +135,14 @@ void should_not_warn_when_all_methods_are_asynchronous() {
+     @Test
+     void should_warn_when_at_least_one_method_is_blocking() {
+ 
+-        assertThat(ToolErrorHandlingNotice.unconfirmedDefaults(withTools(PartiallyAsyncAssistant.class), ASYNCHRONOUS))
++        assertThat(unconfirmedDefaults(withTools(PartiallyAsyncAssistant.class)))
+                 .containsExactly(TOOL_ARGUMENTS_ERROR, TOOL_EXECUTION_ERROR);
+     }
+ 
++    private static List<ToolErrorHandlingNotice.Default> unconfirmedDefaults(AiServiceContext context) {
++        return ToolErrorHandlingNotice.unconfirmedDefaults(context, new DefaultAiServices<>(context)::hasBlockingMethod);
++    }
++
+     private static AiServiceContext withTools(Class<?> aiServiceClass) {
+         AiServiceContext context = AiServiceContext.create(aiServiceClass);
+         context.toolService.tools(List.of(new Tools()));
+@@ -161,8 +152,7 @@ private static AiServiceContext withTools(Class<?> aiServiceClass) {
+     @Test
+     void should_not_warn_for_an_asynchronous_service_that_also_exposes_chat_memory_access() {
+ 
+-        assertThat(ToolErrorHandlingNotice.unconfirmedDefaults(
+-                        withTools(AsyncAssistantWithMemoryAccess.class), ASYNCHRONOUS))
++        assertThat(unconfirmedDefaults(withTools(AsyncAssistantWithMemoryAccess.class)))
+                 .as("the methods of ChatMemoryAccess are not AI Service methods")
+                 .isEmpty();
+     }

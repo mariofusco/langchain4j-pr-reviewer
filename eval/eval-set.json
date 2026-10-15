@@ -1,0 +1,241 @@
+[ {
+  "pr" : "langchain4j/langchain4j#6610",
+  "title" : "Decide in one place which AI Service methods call the model",
+  "merged" : true,
+  "files" : 6,
+  "changedLines" : 199,
+  "expectedVerdict" : "APPROVE",
+  "mustFind" : [ ],
+  "rationale" : "merged without requested changes or addressed review comments"
+}, {
+  "pr" : "langchain4j/langchain4j#6487",
+  "title" : "MCP: support configuring the stdio server working directory",
+  "merged" : true,
+  "files" : 3,
+  "changedLines" : 108,
+  "expectedVerdict" : "APPROVE",
+  "mustFind" : [ ],
+  "rationale" : "merged without requested changes or addressed review comments"
+}, {
+  "pr" : "langchain4j/langchain4j#6584",
+  "title" : "fix(mcp): propagate async tool cancellation",
+  "merged" : true,
+  "files" : 2,
+  "changedLines" : 204,
+  "expectedVerdict" : "REQUEST_CHANGES",
+  "mustFind" : [ {
+    "file" : "langchain4j-mcp/src/main/java/dev/langchain4j/mcp/client/DefaultMcpClient.java",
+    "line" : 814,
+    "comment" : "You probably should call `notifyListeners(l -> l.onExecuteToolError(context, cause))` before throwing this exception because otherwise, the listeners won't get notified (you call it a few lines later, but if you throw an exception here, that code won't be reached). It would be nice to have this cove…"
+  } ],
+  "rationale" : "a reviewer requested changes"
+}, {
+  "pr" : "langchain4j/langchain4j#6406",
+  "title" : "feat(agentic): describe tools without making them callable",
+  "merged" : false,
+  "files" : 2,
+  "changedLines" : 425,
+  "expectedVerdict" : "REQUEST_CHANGES",
+  "mustFind" : [ ],
+  "rationale" : "closed unmerged after review"
+}, {
+  "pr" : "quarkusio/quarkus#57288",
+  "title" : "Reproducibility: use the class name for default step ID",
+  "merged" : true,
+  "files" : 1,
+  "changedLines" : 15,
+  "expectedVerdict" : "APPROVE",
+  "mustFind" : [ ],
+  "rationale" : "merged without requested changes or addressed review comments"
+}, {
+  "pr" : "quarkusio/quarkus#55780",
+  "title" : "Read the compareAndExchange witness correctly in ArC CurrentContextState.set",
+  "merged" : true,
+  "files" : 2,
+  "changedLines" : 145,
+  "expectedVerdict" : "APPROVE",
+  "mustFind" : [ ],
+  "rationale" : "merged without requested changes or addressed review comments"
+}, {
+  "pr" : "quarkusio/quarkus#55998",
+  "title" : "Include the Jackson 3 DOM handlers in native images only when a DOM type is reachable",
+  "merged" : true,
+  "files" : 6,
+  "changedLines" : 294,
+  "expectedVerdict" : "REQUEST_CHANGES",
+  "mustFind" : [ {
+    "file" : "extensions/jackson/runtime/src/main/java/io/quarkus/jackson/runtime/graal/JacksonSerializerRegistrationFeature.java",
+    "line" : 68,
+    "comment" : "So if either Node OR Document is reachable, BOTH DOMDeserializer.NodeDeserializer DOMDeserializer.DocumentDeserializer are being registered. It's probably OK as either way the JDK XML components will be needed - but I'm wondering just in terms of clarity of this code if they have to be registered as…"
+  } ],
+  "rationale" : "a reviewer requested changes"
+}, {
+  "pr" : "quarkusio/quarkus#57206",
+  "title" : "Register the SmallRye Health startup work as services",
+  "merged" : true,
+  "files" : 3,
+  "changedLines" : 53,
+  "expectedVerdict" : "REQUEST_CHANGES",
+  "mustFind" : [ {
+    "file" : "extensions/smallrye-health/deployment/src/main/java/io/quarkus/smallrye/health/deployment/SmallRyeHealthProcessor.java",
+    "line" : 456,
+    "comment" : "Could we use `serviceRegistrar` here and more globally in the upcoming PRs? It's a lot clearer than `reg`."
+  } ],
+  "rationale" : "a reviewer requested changes"
+}, {
+  "pr" : "FasterXML/jackson-databind#6266",
+  "title" : "Add missing `@Test` annotations to 27 tests JUnit 5 does not collect",
+  "merged" : true,
+  "files" : 12,
+  "changedLines" : 35,
+  "expectedVerdict" : "APPROVE",
+  "mustFind" : [ ],
+  "rationale" : "merged without requested changes or addressed review comments"
+}, {
+  "pr" : "FasterXML/jackson-databind#6268",
+  "title" : "Add missing `@Test` annotations to 4 tests JUnit 5 does not collect (2.x)",
+  "merged" : true,
+  "files" : 1,
+  "changedLines" : 6,
+  "expectedVerdict" : "APPROVE",
+  "mustFind" : [ ],
+  "rationale" : "merged without requested changes or addressed review comments"
+}, {
+  "pr" : "FasterXML/jackson-databind#6253",
+  "title" : "Fix #6252: honor `@JsonIgnoreProperties` on `EnumMap` properties",
+  "merged" : true,
+  "files" : 7,
+  "changedLines" : 310,
+  "expectedVerdict" : "COMMENT",
+  "mustFind" : [ {
+    "file" : "src/main/java/tools/jackson/databind/deser/jdk/EnumMapDeserializer.java",
+    "line" : 159,
+    "comment" : "```suggestion ? null : ignorable; ```"
+  } ],
+  "rationale" : "merged after 1 addressed review comments"
+}, {
+  "pr" : "FasterXML/jackson-databind#6194",
+  "title" : "Fix #6136: Apply `@JsonFilter` to `@JsonAnyGetter` properties for exclude-style filters and `ObjectNode` values",
+  "merged" : false,
+  "files" : 4,
+  "changedLines" : 122,
+  "expectedVerdict" : "REQUEST_CHANGES",
+  "mustFind" : [ {
+    "file" : "src/main/java/tools/jackson/databind/ser/jdk/MapSerializer.java",
+    "line" : 473,
+    "comment" : "<details> <summary>\uD83D\uDCA1 <b>Quality:</b> getSuppressableValue() added but never used</summary> The new public accessor getSuppressableValue() is not referenced anywhere; the new serializeFilteredAnyProperties overload uses the private field _suppressableValue directly. The PR description says it was ad…"
+  }, {
+    "file" : "src/main/java/tools/jackson/databind/ser/AnyGetterWriter.java",
+    "line" : 142,
+    "comment" : "<details> <summary>\uD83D\uDCA1 <b>Edge Case:</b> Dead null-value branch in _filterObjectNodeEntries</summary> ObjectNode.properties() never yields Java-null values (absent/null entries are represented as NullNode), so the `val == null` branch selecting getDefaultNullValueSerializer() is unreachable. Harmless…"
+  } ],
+  "rationale" : "closed unmerged after review"
+}, {
+  "pr" : "micrometer-metrics/micrometer#8038",
+  "title" : "Update ModifiedClassPathClassLoader to latest version",
+  "merged" : true,
+  "files" : 3,
+  "changedLines" : 88,
+  "expectedVerdict" : "APPROVE",
+  "mustFind" : [ ],
+  "rationale" : "merged without requested changes or addressed review comments"
+}, {
+  "pr" : "micrometer-metrics/micrometer#8004",
+  "title" : "Configure Error Prone and suppress intentional public API patterns",
+  "merged" : true,
+  "files" : 4,
+  "changedLines" : 21,
+  "expectedVerdict" : "APPROVE",
+  "mustFind" : [ ],
+  "rationale" : "merged without requested changes or addressed review comments"
+}, {
+  "pr" : "micrometer-metrics/micrometer#7480",
+  "title" : "Clarify custom MeterTag value expression resolver docs",
+  "merged" : true,
+  "files" : 6,
+  "changedLines" : 24,
+  "expectedVerdict" : "REQUEST_CHANGES",
+  "mustFind" : [ {
+    "file" : "docs/modules/ROOT/pages/concepts/counters.adoc",
+    "line" : 100,
+    "comment" : "I would reword this a bit. While Micrometer doesn't provide an implementation, the end-user doesn't _necessarily_ need to provide one. The framework they're using or some other third-party library may provide one. ```suggestion NOTE: `CustomValueExpressionResolver` is a sample implementation of `Val…"
+  }, {
+    "file" : "docs/modules/ROOT/pages/concepts/timers.adoc",
+    "line" : 128,
+    "comment" : "Please update this note to match the one in counters.adoc"
+  } ],
+  "rationale" : "a reviewer requested changes"
+}, {
+  "pr" : "micrometer-metrics/micrometer#7664",
+  "title" : "  Fix Kotlin nullable value support in CaffeineCacheMetrics",
+  "merged" : true,
+  "files" : 2,
+  "changedLines" : 73,
+  "expectedVerdict" : "COMMENT",
+  "mustFind" : [ {
+    "file" : "micrometer-core/src/test/kotlin/io/micrometer/core/instrument/binder/cache/CaffeineCacheMetricsKtTests.kt",
+    "line" : 46,
+    "comment" : "Could we add two more tests so we fully cover the API that was updated?"
+  } ],
+  "rationale" : "merged after 1 addressed review comments"
+}, {
+  "pr" : "assertj/assertj#4286",
+  "title" : "Expose FileInfo as actual/expected for file/path diff assertions (3.x)",
+  "merged" : false,
+  "files" : 10,
+  "changedLines" : 292,
+  "expectedVerdict" : "REQUEST_CHANGES",
+  "mustFind" : [ {
+    "file" : "assertj-core/src/main/java/org/assertj/core/internal/Files.java",
+    "line" : 133,
+    "comment" : "FileContent.of(...) can throw IOException; since this call is inside the surrounding try/catch that wraps IOExceptions as UncheckedIOException, an assertion mismatch could incorrectly surface as UncheckedIOException instead of AssertionError if reading the FileContent fails. Consider building actual…"
+  }, {
+    "file" : "assertj-core/src/main/java/org/assertj/core/internal/Paths.java",
+    "line" : 274,
+    "comment" : "FileContent.of(...) can throw IOException; since this is inside the try/catch that wraps IOExceptions as UncheckedIOException, a content mismatch could incorrectly surface as UncheckedIOException if reading the FileContent fails. Consider constructing actual/expected values best-effort and reusing t…"
+  }, {
+    "file" : "assertj-core/src/main/java/org/assertj/core/error/AssertionErrorCreator.java",
+    "line" : 101,
+    "comment" : "valueWrapper() bypasses ValueWrapper.create(...) when converting FileContent to FileInfo, so the AssertionFailedError actual/expected wrappers may no longer honor the provided Representation (ValueWrapper.create is used elsewhere specifically to preserve representation stringification). Consider cre…"
+  }, {
+    "file" : "assertj-core/src/main/java/org/assertj/core/internal/FileContent.java",
+    "line" : 35,
+    "comment" : "FileContent stores and returns a mutable byte[] without defensive copying, so callers could mutate the contents after construction and change what ends up in the generated FileInfo. If FileContent is intended as an immutable carrier, consider cloning the array in the constructor. This issue also app…"
+  } ],
+  "rationale" : "closed unmerged after review"
+}, {
+  "pr" : "assertj/assertj#4101",
+  "title" : "Clarify `isEqualTo` limitations on testing `equals` and `hashCode`",
+  "merged" : true,
+  "files" : 1,
+  "changedLines" : 34,
+  "expectedVerdict" : "APPROVE",
+  "mustFind" : [ ],
+  "rationale" : "merged without requested changes or addressed review comments"
+}, {
+  "pr" : "assertj/assertj#4306",
+  "title" : "Clarify `isNotEqualTo` limitations on testing `equals` and `hashCode`",
+  "merged" : true,
+  "files" : 1,
+  "changedLines" : 34,
+  "expectedVerdict" : "COMMENT",
+  "mustFind" : [ {
+    "file" : "assertj-core/src/main/java/org/assertj/core/api/Assert.java",
+    "line" : 118,
+    "comment" : "This paragraph is in the `isNotEqualTo` Javadoc, but it says `isEqualTo` bypasses `equals`. That’s misleading; the point here is that `isNotEqualTo` also uses the configured comparison strategy and can bypass `equals` when a comparator/predicate is provided."
+  }, {
+    "file" : "assertj-core/src/main/java/org/assertj/core/api/Assert.java",
+    "line" : 123,
+    "comment" : "Javadoc list formatting: this line has two spaces before `<ul>`, which is inconsistent with the rest of the codebase’s Javadoc (typically `* <ul>`)."
+  } ],
+  "rationale" : "merged after 2 addressed review comments"
+}, {
+  "pr" : "assertj/assertj#4249",
+  "title" : "Add size() navigation method to PathAssert",
+  "merged" : false,
+  "files" : 4,
+  "changedLines" : 182,
+  "expectedVerdict" : "REQUEST_CHANGES",
+  "mustFind" : [ ],
+  "rationale" : "closed unmerged after review"
+} ]

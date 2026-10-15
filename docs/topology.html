@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LangChain4j Agentic System Topology</title>
+<style>
+:root {
+    --green: #2e8555;
+    --green-dk: #205d3b;
+    --green-lt: #3cad6e;
+    --teal: #25c2a0;
+    --c-ai: #2e8555;
+    --c-nonai: #6b7280;
+    --c-human: #d97706;
+    --c-seq: #0891b2;
+    --c-par: #3b82f6;
+    --c-loop: #7c3aed;
+    --c-rtr: #dc2626;
+    --c-star: #ca8a04;
+    --c-tool: #e74694;
+    --bg: #f8faf9;
+    --bg2: #f0f4f2;
+    --fg: #1a1a2e;
+    --fg2: #4a5568;
+    --fg3: #718096;
+    --brd: #e2e8f0;
+    --conn: #cbd5e1;
+    --rad: 8px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg); color:var(--fg); line-height:1.6; }
+
+/* ---- Navbar ---- */
+.navbar { background:linear-gradient(135deg,var(--green-dk),var(--green));
+          color:#fff; padding:14px 32px; display:flex; align-items:center; gap:14px;
+          box-shadow:0 2px 8px rgba(0,0,0,.15); position:sticky; top:0; z-index:100; }
+.navbar-logo { display:flex; align-items:center; justify-content:center; }
+.navbar-title { font-size:20px; font-weight:600; letter-spacing:-.3px; }
+.navbar-subtitle { font-size:13px; opacity:.75; margin-left:auto; }
+
+/* ---- Container ---- */
+.container { width:100%; margin:0 auto; padding:32px; }
+
+/* ---- Section ---- */
+.section { margin-bottom:40px; }
+.section-header { display:flex; align-items:center; gap:12px; margin-bottom:16px;
+                  padding-bottom:10px; border-bottom:2px solid var(--green); }
+.section-icon { width:30px; height:30px; background:var(--green); border-radius:var(--rad);
+                display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.section-title { font-size:21px; font-weight:600; }
+.section-count { font-size:12px; color:var(--fg3); background:var(--bg2);
+                 padding:2px 10px; border-radius:12px; }
+
+/* ---- Legend ---- */
+.legend { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:18px;
+          padding:10px 16px; background:#fff; border:1px solid var(--brd); border-radius:var(--rad); }
+.legend-item { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--fg2); }
+.legend-dot { width:12px; height:12px; border-radius:3px; }
+
+/* ---- Org tree (top-down CSS connector chart) ---- */
+.topology-scroll { overflow-x:auto; padding:16px 0; }
+.org-tree { text-align:center; }
+.org-tree ul { display:flex; justify-content:center; padding-top:24px;
+               position:relative; list-style:none; }
+.org-tree > ul { padding-top:0; }
+.org-tree li { display:flex; flex-direction:column; align-items:center;
+               position:relative; padding:24px 10px 0; }
+.org-tree > ul > li { padding-top:0; }
+
+/* vertical line from parent ul down to horizontal bar */
+.org-tree ul::before { content:''; position:absolute; top:0; left:50%;
+                       border-left:2px solid var(--conn); height:24px; }
+.org-tree > ul::before { display:none; }
+
+/* horizontal bar + vertical drop per child */
+.org-tree li::before, .org-tree li::after {
+    content:''; position:absolute; top:0; width:50%; height:24px;
+    border-top:2px solid var(--conn); }
+.org-tree li::before { right:50%; }
+.org-tree li::after  { left:50%; border-left:2px solid var(--conn); }
+.org-tree > ul > li::before, .org-tree > ul > li::after { display:none; }
+.org-tree li:first-child::before { border-top:none; }
+.org-tree li:last-child::after   { border-top:none; }
+.org-tree li:only-child::before  { display:none; }
+.org-tree li:only-child::after   { border-top:none; }
+
+/* ---- Node card ---- */
+.node-card { position:relative; background:#fff; border:1px solid var(--brd);
+             border-radius:var(--rad); padding:10px 14px; min-width:140px; max-width:260px;
+             box-shadow:0 1px 3px rgba(0,0,0,.06); transition:box-shadow .2s,transform .2s; text-align:left; }
+.node-card:hover { box-shadow:0 4px 14px rgba(0,0,0,.1); transform:translateY(-2px); }
+.node-card-header { display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; }
+.agent-name { font-size:14px; font-weight:600; }
+
+.topology-badge { display:inline-block; padding:1px 7px; border-radius:4px;
+                  font-size:10px; font-weight:700; text-transform:uppercase;
+                  letter-spacing:.4px; color:#fff; }
+.topology-badge.sm { font-size:9px; padding:0 5px; }
+.topology-badge.ai    { background:var(--c-ai); }
+.topology-badge.nonai { background:var(--c-nonai); }
+.topology-badge.human { background:var(--c-human); }
+.topology-badge.seq   { background:var(--c-seq); }
+.topology-badge.par   { background:var(--c-par); }
+.topology-badge.loop  { background:var(--c-loop); }
+.topology-badge.rtr   { background:var(--c-rtr); }
+.topology-badge.star  { background:var(--c-star); }
+.topology-badge.tool  { background:var(--c-tool); }
+
+.node-border-ai    { border-left:3px solid var(--c-ai); }
+.node-border-nonai { border-left:3px solid var(--c-nonai); }
+.node-border-human { border-left:3px solid var(--c-human); }
+.node-border-seq   { border-left:3px solid var(--c-seq); }
+.node-border-par   { border-left:3px solid var(--c-par); }
+.node-border-loop  { border-left:3px solid var(--c-loop); }
+.node-border-rtr   { border-left:3px solid var(--c-rtr); }
+.node-border-star  { border-left:3px solid var(--c-star); }
+
+.async-badge { font-size:9px; background:#fef3c7; color:#92400e; padding:0 5px;
+               border-radius:3px; border:1px solid #fcd34d; }
+
+.node-details { font-size:11px; }
+.node-detail { display:flex; gap:4px; margin-top:1px; }
+.nd-label { color:var(--fg3); font-weight:500; }
+.nd-value { color:var(--fg2); }
+
+.condition-label { font-size:9px; background:#fef3c7; color:#92400e;
+                   padding:1px 8px; border-radius:3px; border:1px solid #fcd34d;
+                   margin-bottom:4px; white-space:nowrap; }
+
+.loop-info { display:flex; gap:6px; margin-top:4px; flex-wrap:wrap; }
+.loop-tag { font-size:10px; background:#ede9fe; color:#5b21b6;
+            padding:0 6px; border-radius:3px; border:1px solid #c4b5fd; }
+
+/* ---- Data-flow key badges ---- */
+.key-flow { display:flex; flex-wrap:wrap; gap:3px; margin-top:5px;
+            padding-top:5px; border-top:1px dashed var(--brd); }
+.key-pill { font-size:9px; font-weight:600; padding:0 6px; border-radius:3px;
+            border:1px solid var(--kc);
+            background:#fff; color:var(--kc); white-space:nowrap;
+            opacity:.85; }
+
+/* ---- Tool toggle ---- */
+.tool-toggle { font-size:11px; padding:3px 12px; border-radius:4px;
+               border:1px solid var(--brd); background:var(--bg2); color:var(--fg2);
+               cursor:pointer; transition:background .15s; margin-left:auto; }
+.tool-toggle:hover { background:var(--brd); }
+.tool-row.tool-hidden { display:none; }
+.row-toggle { cursor:pointer; font-size:10px; margin-right:4px; display:inline-block;
+              transition:transform .2s; color:var(--fg3); user-select:none; }
+.row-toggle.collapsed { transform:rotate(-90deg); }
+.row-hidden { display:none; }
+
+/* ---- Data-flow SVG overlay ---- */
+.df-svg { position:absolute; top:0; left:0; pointer-events:none; z-index:2; overflow:visible; }
+.df-svg.df-hidden { display:none; }
+
+/* ---- Data-flow legend ---- */
+.df-legend { align-items:center; }
+.df-legend-title { font-size:12px; font-weight:600; color:var(--fg); margin-right:4px; }
+.df-toggle { margin-left:auto; font-size:11px; padding:3px 12px; border-radius:4px;
+             border:1px solid var(--brd); background:var(--bg2); color:var(--fg2);
+             cursor:pointer; transition:background .15s; }
+.df-toggle:hover { background:var(--brd); }
+
+/* ---- Execution groups ---- */
+.execution-group { margin-bottom:12px; }
+.execution-header { display:flex; align-items:center; gap:10px; padding:10px 16px;
+                    background:#fff; border:1px solid var(--brd);
+                    border-radius:var(--rad) var(--rad) 0 0;
+                    cursor:pointer; user-select:none; transition:background .15s; }
+.execution-header:hover { background:var(--bg2); }
+.execution-header.collapsed { border-radius:var(--rad); }
+.chevron { transition:transform .2s; color:var(--fg3); font-size:11px; }
+.execution-header.collapsed .chevron { transform:rotate(-90deg); }
+.execution-memory-id { font-weight:600; font-size:14px; }
+.execution-meta { margin-left:auto; display:flex; gap:8px; align-items:center; }
+
+.status-badge { padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600; }
+.st-ok   { background:#d1fae5; color:#065f46; }
+.st-fail { background:#fee2e2; color:#991b1b; }
+.st-run  { background:#dbeafe; color:#1e40af; }
+
+.execution-body { border:1px solid var(--brd); border-top:none;
+                  border-radius:0 0 var(--rad) var(--rad); background:#fff; overflow:hidden; }
+.execution-body.collapsed { display:none; }
+
+/* ---- Single execution ---- */
+.single-exec { padding:12px 16px; border-bottom:1px solid var(--brd); }
+.single-exec:last-child { border-bottom:none; }
+.exec-summary { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+.status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.st-dot-ok   { background:#10b981; }
+.st-dot-fail { background:#ef4444; }
+.st-dot-run  { background:#3b82f6; animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.exec-agent { font-weight:600; font-size:14px; }
+.dur-badge { font-size:12px; color:var(--fg3); font-family:'SF Mono','Fira Code',monospace; }
+.exec-time { font-size:11px; color:var(--fg3); }
+
+.error-box { background:#fef2f2; border:1px solid #fecaca; border-radius:var(--rad);
+             padding:8px 12px; margin-bottom:8px; font-size:12px; color:#991b1b; }
+.error-box code { font-size:11px; word-break:break-all; }
+
+/* ---- Waterfall table ---- */
+.wf-table { width:100%; border-collapse:collapse; font-size:13px; }
+.wf-table th { text-align:left; padding:6px 10px; background:var(--bg2); color:var(--fg3);
+               font-size:10px; font-weight:600; text-transform:uppercase;
+               letter-spacing:.5px; border-bottom:1px solid var(--brd); }
+.wf-table td { padding:5px 10px; border-bottom:1px solid var(--brd); vertical-align:middle; }
+.wf-table tr:last-child td { border-bottom:none; }
+.wf-table tr:hover { background:var(--bg); }
+.wf-timeline-col { width:35%; }
+
+.wf-agent { display:flex; align-items:center; gap:4px; white-space:nowrap; }
+.wf-indent { display:inline-block; width:18px; }
+.wf-connector { color:var(--conn); font-family:monospace; margin-right:2px; font-size:12px; }
+.wf-dur { font-family:'SF Mono','Fira Code',monospace; font-size:12px; color:var(--fg2); white-space:nowrap; }
+
+.wf-bar-track { position:relative; height:18px; background:var(--bg2); border-radius:3px; min-width:120px; }
+.wf-bar { position:absolute; top:2px; height:14px; border-radius:3px; opacity:.8; min-width:2px;
+          transition:opacity .15s; }
+.wf-bar:hover { opacity:1; }
+.bar-ai    { background:var(--c-ai); }
+.bar-nonai { background:var(--c-nonai); }
+.bar-human { background:var(--c-human); }
+.bar-seq   { background:var(--c-seq); }
+.bar-par   { background:var(--c-par); }
+.bar-loop  { background:var(--c-loop); }
+.bar-rtr   { background:var(--c-rtr); }
+.bar-star  { background:var(--c-star); }
+.bar-tool  { background:var(--c-tool); }
+
+.wf-io { font-size:11px; color:var(--fg3); white-space:nowrap; }
+
+.iter-tag { font-size:9px; background:#ede9fe; color:#5b21b6;
+            padding:0 5px; border-radius:3px; border:1px solid #c4b5fd;
+            font-weight:600; white-space:nowrap; }
+
+/* ---- Tooltip ---- */
+.tt-trigger { position:relative; cursor:help; }
+.tt-trigger .tt-content { display:none; position:absolute; bottom:calc(100% + 4px); left:0;
+                          background:var(--fg); color:#fff; padding:6px 10px; border-radius:6px;
+                          font-size:11px; white-space:pre-wrap; max-width:400px; z-index:10;
+                          box-shadow:0 4px 12px rgba(0,0,0,.2); word-break:break-all; }
+.tt-trigger:hover .tt-content { display:block; }
+
+/* ---- Footer ---- */
+.footer { text-align:center; padding:24px 0 8px; font-size:12px; color:var(--fg3);
+          border-top:1px solid var(--brd); margin-top:20px; }
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <div class="navbar-logo"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="white" fill-opacity="0.2"/><path d="M7 8h14M7 14h14M7 20h10" stroke="white" stroke-width="2" stroke-linecap="round"/></svg></div>
+  <div class="navbar-title">LangChain4j Agentic System Topology</div>
+  <div class="navbar-subtitle">LangChain4j Agentic System</div>
+</nav>
+<main class="container">
+<section class="section">
+<div class="section-header">
+  <div class="section-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="3" r="2" fill="white"/><circle cx="4" cy="13" r="2" fill="white"/><circle cx="12" cy="13" r="2" fill="white"/><line x1="8" y1="5" x2="4" y2="11" stroke="white" stroke-width="1.5"/><line x1="8" y1="5" x2="12" y2="11" stroke="white" stroke-width="1.5"/></svg></div>
+  <h2 class="section-title">System Topology</h2>
+</div>
+<div class="legend">
+<div class="legend-item"><div class="legend-dot" style="background:#0891b2"></div><span>Sequence</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div><span>Action</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#2e8555"></div><span>AI</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div><span>Router</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div><span>Parallel</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div><span>Loop</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#ca8a04"></div><span>Star</span></div>
+</div>
+<div class="legend df-legend">
+<span class="df-legend-title">Data Flow</span><div class="legend-item"><div class="legend-dot" style="background:#e63946"></div><span>FinalReport</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#457b9d"></div><span>PrUrl</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#2a9d8f"></div><span>Mode</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#e9c46a"></div><span>Options</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#7b2d8e"></div><span>PullRequest</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#f4a261"></div><span>DiffStats</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#264653"></div><span>@AgenticScope</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#d62828"></div><span>PrSummary</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#6a994e"></div><span>PrOverview</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#bc6c25"></div><span>DiffText</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#e63946"></div><span>RoutingInput</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#457b9d"></div><span>CodeContext</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#2a9d8f"></div><span>ReviewerGuidance</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#e9c46a"></div><span>ClarificationQuestions</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#7b2d8e"></div><span>ReviewBundle</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#f4a261"></div><span>Usefulness</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#264653"></div><span>PanelOutputs</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#d62828"></div><span>CorrectnessFindings</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#6a994e"></div><span>SecurityFindings</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#bc6c25"></div><span>DesignFindings</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#e63946"></div><span>TestFindings</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#457b9d"></div><span>DocsFindings</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#2a9d8f"></div><span>ChunkFindings</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#e9c46a"></div><span>DiffChunks</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#7b2d8e"></div><span>ChunkReview</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#f4a261"></div><span>DiffChunk</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#264653"></div><span>Findings</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#d62828"></div><span>Changes</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#6a994e"></div><span>ReviewReport</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#bc6c25"></div><span>ContestedFindings</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#e63946"></div><span>ContestedFinding</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#457b9d"></div><span>DebateVerdict</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#2a9d8f"></div><span>Prosecution</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#e9c46a"></div><span>debateContext</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#7b2d8e"></div><span>Defense</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#f4a261"></div><span>ActiveFindings</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#264653"></div><span>ScoreCard</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#d62828"></div><span>ScoreVote1</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#6a994e"></div><span>ScoreVote2</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#bc6c25"></div><span>ScoreVote3</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#e63946"></div><span>Scores</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#457b9d"></div><span>ReportDraft</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#2a9d8f"></div><span>Verdict</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#e9c46a"></div><span>VerdictReasoning</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#7b2d8e"></div><span>Limitations</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#f4a261"></div><span>ReportCritique</span></div>
+<div class="legend-item"><div class="legend-dot" style="background:#264653"></div><span>Approval</span></div>
+<button class="df-toggle" onclick="toggleDataFlow()">Toggle Edges</button></div>
+<div class="topology-scroll">
+<div class="org-tree" style="position:relative">
+<svg id="df-svg" class="df-svg"><defs><marker id="ah-583779798" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e63946"/></marker><marker id="ah-77363181" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#457b9d"/></marker><marker id="ah-2403779" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#2a9d8f"/></marker><marker id="ah-415178366" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e9c46a"/></marker><marker id="ah-829283434" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7b2d8e"/></marker><marker id="ah-1004887174" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f4a261"/></marker><marker id="ah-90739477" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#264653"/></marker><marker id="ah-1943540956" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#d62828"/></marker><marker id="ah-2132796997" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#6a994e"/></marker><marker id="ah-32399630" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#bc6c25"/></marker><marker id="ah-454564156" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e63946"/></marker><marker id="ah-1714729698" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#457b9d"/></marker><marker id="ah-10701981" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#2a9d8f"/></marker><marker id="ah-1277173897" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e9c46a"/></marker><marker id="ah-1456634342" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7b2d8e"/></marker><marker id="ah-1803603443" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f4a261"/></marker><marker id="ah-1023630606" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#264653"/></marker><marker id="ah-1931829557" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#d62828"/></marker><marker id="ah-276018570" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#6a994e"/></marker><marker id="ah-2039622152" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#bc6c25"/></marker><marker id="ah-200089820" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e63946"/></marker><marker id="ah-1998174843" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#457b9d"/></marker><marker id="ah-1686949751" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#2a9d8f"/></marker><marker id="ah-1555290069" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e9c46a"/></marker><marker id="ah-1235707909" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7b2d8e"/></marker><marker id="ah-1020001976" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f4a261"/></marker><marker id="ah-613926358" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#264653"/></marker><marker id="ah-1891370333" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#d62828"/></marker><marker id="ah-1013273908" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#6a994e"/></marker><marker id="ah-213410749" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#bc6c25"/></marker><marker id="ah-6884214" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e63946"/></marker><marker id="ah-1773918840" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#457b9d"/></marker><marker id="ah-764691227" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#2a9d8f"/></marker><marker id="ah-1972510338" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e9c46a"/></marker><marker id="ah-1085397472" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7b2d8e"/></marker><marker id="ah-411705168" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f4a261"/></marker><marker id="ah-162548574" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#264653"/></marker><marker id="ah-726072523" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#d62828"/></marker><marker id="ah-726072522" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#6a994e"/></marker><marker id="ah-726072521" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#bc6c25"/></marker><marker id="ah-1823899583" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e63946"/></marker><marker id="ah-1396309165" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#457b9d"/></marker><marker id="ah-2015814073" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#2a9d8f"/></marker><marker id="ah-1213936283" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#e9c46a"/></marker><marker id="ah-957341831" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7b2d8e"/></marker><marker id="ah-812990458" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f4a261"/></marker><marker id="ah-1249888867" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#264653"/></marker></defs></svg>
+<ul>
+<li>
+<div class="node-card node-border-seq" data-agent-id="prReviewSystem" data-output-key="FinalReport" data-output-color="#e63946" data-input-keys="PrUrl,Mode,Options">
+<div class="node-card-header"><span class="topology-badge seq">Sequence</span><span class="agent-name">prReviewSystem</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">PrReviewSystem</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Reviews a GitHub pull request and produces a scored report</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReviewReport</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">SequentialPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#457b9d">&#8592; PrUrl</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; Mode</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; Options</span><span class="key-pill key-out" style="--kc:#e63946">&#8594; FinalReport</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="prFetcher$0" data-output-key="PullRequest" data-output-color="#7b2d8e" data-input-keys="PrUrl">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">prFetcher</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">PrFetcher</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Fetches the pull request, its diff, commits, checks, reviews...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">PullRequest</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#457b9d">&#8592; PrUrl</span><span class="key-pill key-out" style="--kc:#7b2d8e">&#8594; PullRequest</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="diffPreprocessor$1" data-output-key="DiffStats" data-output-color="#f4a261" data-input-keys="@AgenticScope,PullRequest,Options">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">diffPreprocessor</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">DiffPreprocessor</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Parses the diff, renders the reviewed part within the size l...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">DiffStats</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; PullRequest</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; Options</span><span class="key-pill key-out" style="--kc:#f4a261">&#8594; DiffStats</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="prTriage$2" data-output-key="PrSummary" data-output-color="#d62828" data-input-keys="PrOverview,DiffText">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">prTriage</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">PrTriage</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Classifies the pull request: intent, category, size, risk an...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">PrSummary</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#bc6c25">&#8592; DiffText</span><span class="key-pill key-out" style="--kc:#d62828">&#8594; PrSummary</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="routingInputs$3" data-output-key="RoutingInput" data-output-color="#e63946" data-input-keys="PrSummary,DiffStats">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">routingInputs</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">RoutingInputs</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Builds the compact, JSON-like input of the reviewer router</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Object&gt;</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; DiffStats</span><span class="key-pill key-out" style="--kc:#e63946">&#8594; RoutingInput</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="contextGate$4" data-output-key="CodeContext" data-output-color="#457b9d" data-input-keys="PrSummary">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">contextGate</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ContextGate</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Gathers code context when the triage asks for it</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">String</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ConditionalPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-out" style="--kc:#457b9d">&#8594; CodeContext</span></div>
+</div>
+<ul>
+<li>
+<div class="condition-label">when: the triage needs context</div>
+<div class="node-card node-border-ai" data-agent-id="contextGatherer$0$4" data-output-key="CodeContext" data-output-color="#457b9d" data-input-keys="PrOverview,PrSummary,DiffText">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">contextGatherer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ContextGatherer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Reads the repository to collect the code around the change: ...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">String</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#bc6c25">&#8592; DiffText</span><span class="key-pill key-out" style="--kc:#457b9d">&#8594; CodeContext</span></div>
+</div>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="clarificationGate$5" data-output-key="ReviewerGuidance" data-output-color="#2a9d8f" data-input-keys="Mode">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">clarificationGate</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ClarificationGate</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Asks clarifications in interactive mode</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">String</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ConditionalPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; Mode</span><span class="key-pill key-out" style="--kc:#2a9d8f">&#8594; ReviewerGuidance</span></div>
+</div>
+<ul>
+<li>
+<div class="condition-label">when: interactive mode</div>
+<div class="node-card node-border-seq" data-agent-id="clarification$0$5" data-output-key="ReviewerGuidance" data-output-color="#2a9d8f" data-input-keys="PrSummary">
+<div class="node-card-header"><span class="topology-badge seq">Sequence</span><span class="agent-name">clarification</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">Clarification</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Generates questions and asks them to the human reviewer</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">String</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">SequentialPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-out" style="--kc:#2a9d8f">&#8594; ReviewerGuidance</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-ai" data-agent-id="questionGenerator$0$0$5" data-output-key="ClarificationQuestions" data-output-color="#e9c46a" data-input-keys="PrOverview,PrSummary,CodeContext">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">questionGenerator</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">QuestionGenerator</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Prepares up to three questions for the human reviewer whose ...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">List</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#457b9d">&#8592; CodeContext</span><span class="key-pill key-out" style="--kc:#e9c46a">&#8594; ClarificationQuestions</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="questionsGate$1$0$5" data-output-key="ReviewerGuidance" data-output-color="#2a9d8f" data-input-keys="ClarificationQuestions">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">questionsGate</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">QuestionsGate</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Asks the questions when there are any</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">String</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ConditionalPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; ClarificationQuestions</span><span class="key-pill key-out" style="--kc:#2a9d8f">&#8594; ReviewerGuidance</span></div>
+</div>
+<ul>
+<li>
+<div class="condition-label">when: there are questions</div>
+<div class="node-card node-border-nonai" data-agent-id="humanClarification$0$1$0$5" data-output-key="ReviewerGuidance" data-output-color="#2a9d8f" data-input-keys="PullRequest,PrSummary,ClarificationQuestions">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">humanClarification</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">HumanClarification</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Asks the human reviewer the clarification questions and coll...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">String</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; PullRequest</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; ClarificationQuestions</span><span class="key-pill key-out" style="--kc:#2a9d8f">&#8594; ReviewerGuidance</span></div>
+</div>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="reviewBundleBuilder$6" data-output-key="ReviewBundle" data-output-color="#7b2d8e" data-input-keys="PrOverview,PrSummary,CodeContext,ReviewerGuidance,DiffText">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">reviewBundleBuilder</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReviewBundleBuilder</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Renders the pull request bundle shared by all reviewers</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">String</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#457b9d">&#8592; CodeContext</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; ReviewerGuidance</span><span class="key-pill key-in" style="--kc:#bc6c25">&#8592; DiffText</span><span class="key-pill key-out" style="--kc:#7b2d8e">&#8594; ReviewBundle</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="usefulnessAssessor$7" data-output-key="Usefulness" data-output-color="#f4a261" data-input-keys="PrOverview,PrSummary">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">usefulnessAssessor</span><span class="async-badge">async</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">UsefulnessAssessor</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Assesses how useful the contribution is for the project</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">UsefulnessAssessment</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-out" style="--kc:#f4a261">&#8594; Usefulness</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="reviewPanel$8" data-output-key="PanelOutputs" data-output-color="#264653" data-input-keys="RoutingInput">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">reviewPanel</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReviewPanel</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Selects the relevant reviewers and runs them in parallel</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Object&gt;</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">DecisionRouterPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e63946">&#8592; RoutingInput</span><span class="key-pill key-out" style="--kc:#264653">&#8594; PanelOutputs</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-ai" data-agent-id="correctnessReviewer$0$8" data-output-key="CorrectnessFindings" data-output-color="#d62828" data-input-keys="ReviewBundle">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">correctnessReviewer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">CorrectnessReviewer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Finds functional bugs in changed Java production code: null ...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">List</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; ReviewBundle</span><span class="key-pill key-out" style="--kc:#d62828">&#8594; CorrectnessFindings</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="securityReviewer$1$8" data-output-key="SecurityFindings" data-output-color="#6a994e" data-input-keys="ReviewBundle">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">securityReviewer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">SecurityReviewer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Finds security vulnerabilities: injection, unsafe deserializ...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">List</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; ReviewBundle</span><span class="key-pill key-out" style="--kc:#6a994e">&#8594; SecurityFindings</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="designReviewer$2$8" data-output-key="DesignFindings" data-output-color="#bc6c25" data-input-keys="ReviewBundle">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">designReviewer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">DesignReviewer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Reviews conciseness and design of changed code: unnecessary ...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">List</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; ReviewBundle</span><span class="key-pill key-out" style="--kc:#bc6c25">&#8594; DesignFindings</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="testReviewer$3$8" data-output-key="TestFindings" data-output-color="#e63946" data-input-keys="ReviewBundle">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">testReviewer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">TestReviewer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Checks that the changed behaviour is covered by meaningful t...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">List</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; ReviewBundle</span><span class="key-pill key-out" style="--kc:#e63946">&#8594; TestFindings</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="docsApiReviewer$4$8" data-output-key="DocsFindings" data-output-color="#457b9d" data-input-keys="ReviewBundle">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">docsApiReviewer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">DocsApiReviewer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Checks public API compatibility, Javadoc and user documentat...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">List</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; ReviewBundle</span><span class="key-pill key-out" style="--kc:#457b9d">&#8594; DocsFindings</span></div>
+</div>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="panelFallback$9" data-output-key="CorrectnessFindings" data-output-color="#d62828" data-input-keys="PrSummary">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">panelFallback</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">PanelFallback</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Reviews correctness when the router selected no reviewer</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">RawFinding&gt;</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ConditionalPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-out" style="--kc:#d62828">&#8594; CorrectnessFindings</span></div>
+</div>
+<ul>
+<li>
+<div class="condition-label">when: no reviewer activated on a code change</div>
+<div class="node-card node-border-ai" data-agent-id="correctnessReviewerFallback$0$9" data-output-key="CorrectnessFindings" data-output-color="#d62828" data-input-keys="ReviewBundle">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">correctnessReviewerFallback</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">CorrectnessReviewerFallback</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Finds functional bugs in changed Java production code, run w...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">List</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; ReviewBundle</span><span class="key-pill key-out" style="--kc:#d62828">&#8594; CorrectnessFindings</span></div>
+</div>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="largeDiffGate$10" data-output-key="ChunkFindings" data-output-color="#2a9d8f" data-input-keys="DiffChunks">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">largeDiffGate</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">LargeDiffGate</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Reviews the left-out files of a very large pull request</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">RawFinding&gt;&gt;</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ConditionalPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; DiffChunks</span><span class="key-pill key-out" style="--kc:#2a9d8f">&#8594; ChunkFindings</span></div>
+</div>
+<ul>
+<li>
+<div class="condition-label">when: files were left out of the main diff</div>
+<div class="node-card node-border-par" data-agent-id="chunkedReview$0$10" data-output-key="ChunkFindings" data-output-color="#2a9d8f" data-input-keys="DiffChunks">
+<div class="node-card-header"><span class="topology-badge par">Parallel</span><span class="agent-name">chunkedReview</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ChunkedReview</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Reviews each chunk of left-out files in parallel</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">RawFinding&gt;&gt;</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ParallelMapperPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; DiffChunks</span><span class="key-pill key-out" style="--kc:#2a9d8f">&#8594; ChunkFindings</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-ai" data-agent-id="chunkReviewer$0$0$10" data-output-key="ChunkReview" data-output-color="#7b2d8e" data-input-keys="DiffChunk,PrOverview,PrSummary">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">chunkReviewer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ChunkReviewer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Reviews one chunk of a very large diff for correctness and s...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">List</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#f4a261">&#8592; DiffChunk</span><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-out" style="--kc:#7b2d8e">&#8594; ChunkReview</span></div>
+</div>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="findingsConsolidator$11" data-output-key="Findings" data-output-color="#264653" data-input-keys="@AgenticScope,Changes,Options">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">findingsConsolidator</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">FindingsConsolidator</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Validates, deduplicates and identifies the findings, and sel...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Finding&gt;</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; Changes</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; Options</span><span class="key-pill key-out" style="--kc:#264653">&#8594; Findings</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-loop" data-agent-id="reviewRevisionLoop$12" data-output-key="ReviewReport" data-output-color="#6a994e" data-input-keys="Findings">
+<div class="node-card-header"><span class="topology-badge loop">Loop</span><span class="agent-name">reviewRevisionLoop</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReviewRevisionLoop</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Debates, scores, writes and seeks approval until approved</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReviewReport</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">LoopPlanner</span></div>
+<div class="loop-info"><span class="loop-tag">max 3</span><span class="loop-tag">exit: the reviewer did not contest the report</span><span class="loop-tag">test at end</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; Findings</span><span class="key-pill key-out" style="--kc:#6a994e">&#8594; ReviewReport</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="applyHumanFeedback$0$12" data-output-key="Findings" data-output-color="#264653" data-input-keys="@AgenticScope,Findings,Options">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">applyHumanFeedback</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ApplyHumanFeedback</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Applies the human reviewer&#39;s contest and drop decisions</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Finding&gt;</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#264653">&#8592; Findings</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; Options</span><span class="key-pill key-out" style="--kc:#264653">&#8594; Findings</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="debateGate$1$12" data-output-key="Findings" data-output-color="#264653" data-input-keys="Findings">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">debateGate</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">DebateGate</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Debates the contested findings</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Finding&gt;</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ConditionalPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; Findings</span><span class="key-pill key-out" style="--kc:#264653">&#8594; Findings</span></div>
+</div>
+<ul>
+<li>
+<div class="condition-label">when: contested findings within the cost cap</div>
+<div class="node-card node-border-loop" data-agent-id="contestedDebates$0$1$12" data-output-key="Findings" data-output-color="#264653" data-input-keys="ContestedFindings">
+<div class="node-card-header"><span class="topology-badge loop">Loop</span><span class="agent-name">contestedDebates</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ContestedDebates</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Debates the contested findings one at a time</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Finding&gt;</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">LoopPlanner</span></div>
+<div class="loop-info"><span class="loop-tag">max 10</span><span class="loop-tag">exit: no contested finding left, or cost cap r...</span><span class="loop-tag">test at end</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#bc6c25">&#8592; ContestedFindings</span><span class="key-pill key-out" style="--kc:#264653">&#8594; Findings</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="nextContested$0$0$1$12" data-output-key="ContestedFinding" data-output-color="#e63946" data-input-keys="@AgenticScope,ContestedFindings,Findings">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">nextContested</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">NextContested</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Takes the next contested finding off the queue</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Finding</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#bc6c25">&#8592; ContestedFindings</span><span class="key-pill key-in" style="--kc:#264653">&#8592; Findings</span><span class="key-pill key-out" style="--kc:#e63946">&#8594; ContestedFinding</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-star" data-agent-id="findingDebate$1$0$1$12" data-output-key="DebateVerdict" data-output-color="#457b9d" data-input-keys="ContestedFinding">
+<div class="node-card-header"><span class="topology-badge star">Star</span><span class="agent-name">findingDebate</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">FindingDebate</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Settles a contested finding through a debate</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">DebateVerdict</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">DebatePlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e63946">&#8592; ContestedFinding</span><span class="key-pill key-out" style="--kc:#457b9d">&#8594; DebateVerdict</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-ai" data-agent-id="findingProsecutor$0$1$0$1$12" data-output-key="Prosecution" data-output-color="#2a9d8f" data-input-keys="ContestedFinding,PrOverview,DiffText,ReviewerGuidance,debateContext">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">findingProsecutor</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">FindingProsecutor</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Argues that a contested finding is real</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">String</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e63946">&#8592; ContestedFinding</span><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#bc6c25">&#8592; DiffText</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; ReviewerGuidance</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; debateContext</span><span class="key-pill key-out" style="--kc:#2a9d8f">&#8594; Prosecution</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="findingDefender$1$1$0$1$12" data-output-key="Defense" data-output-color="#7b2d8e" data-input-keys="ContestedFinding,PrOverview,DiffText,ReviewerGuidance,debateContext">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">findingDefender</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">FindingDefender</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Argues that a contested finding is a false positive</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">String</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e63946">&#8592; ContestedFinding</span><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#bc6c25">&#8592; DiffText</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; ReviewerGuidance</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; debateContext</span><span class="key-pill key-out" style="--kc:#7b2d8e">&#8594; Defense</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="debateJudge$2$1$0$1$12" data-output-key="DebateVerdict" data-output-color="#457b9d" data-input-keys="ContestedFinding,debateContext">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">debateJudge</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">DebateJudge</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Decides whether a contested finding is real from the debate</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">DebateVerdict</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e63946">&#8592; ContestedFinding</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; debateContext</span><span class="key-pill key-out" style="--kc:#457b9d">&#8594; DebateVerdict</span></div>
+</div>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="applyDebateVerdict$2$0$1$12" data-output-key="Findings" data-output-color="#264653" data-input-keys="ContestedFinding,DebateVerdict,Findings">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">applyDebateVerdict</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ApplyDebateVerdict</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Records the outcome of a debate on its finding</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Finding&gt;</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e63946">&#8592; ContestedFinding</span><span class="key-pill key-in" style="--kc:#457b9d">&#8592; DebateVerdict</span><span class="key-pill key-in" style="--kc:#264653">&#8592; Findings</span><span class="key-pill key-out" style="--kc:#264653">&#8594; Findings</span></div>
+</div>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="debateBudgetGuard$2$12" data-output-key="Findings" data-output-color="#264653" data-input-keys="@AgenticScope,Findings,ContestedFindings">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">debateBudgetGuard</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">DebateBudgetGuard</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Marks as unsure the contested findings left undebated by the...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Finding&gt;</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#264653">&#8592; Findings</span><span class="key-pill key-in" style="--kc:#bc6c25">&#8592; ContestedFindings</span><span class="key-pill key-out" style="--kc:#264653">&#8594; Findings</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="activeFindingsSelector$3$12" data-output-key="ActiveFindings" data-output-color="#f4a261" data-input-keys="Findings">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">activeFindingsSelector</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ActiveFindingsSelector</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Selects the findings that still count</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Finding&gt;</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; Findings</span><span class="key-pill key-out" style="--kc:#f4a261">&#8594; ActiveFindings</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="scorer$4$12" data-output-key="ScoreCard" data-output-color="#264653" data-input-keys="PrOverview,PrSummary,Usefulness,ActiveFindings,ReviewerGuidance">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">scorer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">Scorer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Scores the pull request on every metric and proposes a verdi...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ScoreCard</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; Usefulness</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; ReviewerGuidance</span><span class="key-pill key-out" style="--kc:#264653">&#8594; ScoreCard</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="votingGate$5$12" data-output-key="ScoreCard" data-output-color="#264653" data-input-keys="ScoreCard">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">votingGate</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">VotingGate</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Votes on borderline score cards</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ScoreCard</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ConditionalPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; ScoreCard</span><span class="key-pill key-out" style="--kc:#264653">&#8594; ScoreCard</span></div>
+</div>
+<ul>
+<li>
+<div class="condition-label">when: borderline score card within the cost cap</div>
+<div class="node-card node-border-par" data-agent-id="scoreVoting$0$5$12" data-output-key="ScoreCard" data-output-color="#264653" data-input-keys="ActiveFindings">
+<div class="node-card-header"><span class="topology-badge par">Parallel</span><span class="agent-name">scoreVoting</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ScoreVoting</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Aggregates independent score cards for a borderline review</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ScoreCard</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">VotingPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-out" style="--kc:#264653">&#8594; ScoreCard</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-ai" data-agent-id="neutralScorer$0$0$5$12" data-output-key="ScoreVote1" data-output-color="#d62828" data-input-keys="PrOverview,PrSummary,Usefulness,ActiveFindings,ReviewerGuidance">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">neutralScorer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">NeutralScorer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Scores the pull request independently, as a maintainer</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ScoreCard</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; Usefulness</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; ReviewerGuidance</span><span class="key-pill key-out" style="--kc:#d62828">&#8594; ScoreVote1</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="skepticalScorer$1$0$5$12" data-output-key="ScoreVote2" data-output-color="#6a994e" data-input-keys="PrOverview,PrSummary,Usefulness,ActiveFindings,ReviewerGuidance">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">skepticalScorer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">SkepticalScorer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Scores the pull request independently, as a strict maintaine...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ScoreCard</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; Usefulness</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; ReviewerGuidance</span><span class="key-pill key-out" style="--kc:#6a994e">&#8594; ScoreVote2</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="lenientScorer$2$0$5$12" data-output-key="ScoreVote3" data-output-color="#bc6c25" data-input-keys="PrOverview,PrSummary,Usefulness,ActiveFindings,ReviewerGuidance">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">lenientScorer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">LenientScorer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Scores the pull request independently, as a pragmatic mainta...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ScoreCard</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; Usefulness</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; ReviewerGuidance</span><span class="key-pill key-out" style="--kc:#bc6c25">&#8594; ScoreVote3</span></div>
+</div>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="scoreCalibrator$6$12" data-output-key="Scores" data-output-color="#e63946" data-input-keys="@AgenticScope,ScoreCard,ActiveFindings,DiffStats,PrSummary">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">scoreCalibrator</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ScoreCalibrator</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Applies the score caps and the verdict floor</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Scores</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#264653">&#8592; ScoreCard</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; DiffStats</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-out" style="--kc:#e63946">&#8594; Scores</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-loop" data-agent-id="reportQualityLoop$7$12" data-output-key="ReviewReport" data-output-color="#6a994e" data-input-keys="Scores">
+<div class="node-card-header"><span class="topology-badge loop">Loop</span><span class="agent-name">reportQualityLoop</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReportQualityLoop</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Writes the report and refines it until the critic passes</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReviewReport</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">LoopPlanner</span></div>
+<div class="loop-info"><span class="loop-tag">max 3</span><span class="loop-tag">exit: the critic is satisfied, or the cost cap...</span><span class="loop-tag">test at end</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#e63946">&#8592; Scores</span><span class="key-pill key-out" style="--kc:#6a994e">&#8594; ReviewReport</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-ai" data-agent-id="reportWriter$0$7$12" data-output-key="ReportDraft" data-output-color="#457b9d" data-input-keys="PrOverview,PrSummary,Usefulness,ActiveFindings,Scores,Verdict,VerdictReasoning,Limitations,ReviewerGuidance,ReportDraft,ReportCritique">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">reportWriter</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReportWriter</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Writes the prose of the review report</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReportDraft</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; PrOverview</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; Usefulness</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-in" style="--kc:#e63946">&#8592; Scores</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; Verdict</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; VerdictReasoning</span><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; Limitations</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; ReviewerGuidance</span><span class="key-pill key-in" style="--kc:#457b9d">&#8592; ReportDraft</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ReportCritique</span><span class="key-pill key-out" style="--kc:#457b9d">&#8594; ReportDraft</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="reportAssembler$1$7$12" data-output-key="ReviewReport" data-output-color="#6a994e" data-input-keys="@AgenticScope,PullRequest,ReportDraft,ActiveFindings,Scores,Verdict,VerdictReasoning">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">reportAssembler</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReportAssembler</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Renders the report from the prose and the review data</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReviewReport</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; PullRequest</span><span class="key-pill key-in" style="--kc:#457b9d">&#8592; ReportDraft</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-in" style="--kc:#e63946">&#8592; Scores</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; Verdict</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; VerdictReasoning</span><span class="key-pill key-out" style="--kc:#6a994e">&#8594; ReviewReport</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="reportCritic$2$7$12" data-output-key="ReportCritique" data-output-color="#f4a261" data-input-keys="ReviewReport,ActiveFindings">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">reportCritic</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReportCritic</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Checks the report for accuracy, consistency and actionabilit...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Critique</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; ReviewReport</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-out" style="--kc:#f4a261">&#8594; ReportCritique</span></div>
+</div>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="approvalGate$8$12" data-output-key="Approval" data-output-color="#264653" data-input-keys="Mode">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">approvalGate</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ApprovalGate</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Gets the report approved</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ApprovalDecision</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ConditionalPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; Mode</span><span class="key-pill key-out" style="--kc:#264653">&#8594; Approval</span></div>
+</div>
+<ul>
+<li>
+<div class="condition-label">when: interactive mode</div>
+<div class="node-card node-border-nonai" data-agent-id="humanApproval$0$8$12" data-output-key="Approval" data-output-color="#264653" data-input-keys="ReviewReport,Findings,Options">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">humanApproval</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">HumanApproval</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Shows the report to the human reviewer and asks to approve, ...</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ApprovalDecision</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#6a994e">&#8592; ReviewReport</span><span class="key-pill key-in" style="--kc:#264653">&#8592; Findings</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; Options</span><span class="key-pill key-out" style="--kc:#264653">&#8594; Approval</span></div>
+</div>
+</li>
+<li>
+<div class="condition-label">when: automatic mode</div>
+<div class="node-card node-border-nonai" data-agent-id="autoApproval$1$8$12" data-output-key="Approval" data-output-color="#264653">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">autoApproval</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">AutoApproval</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Approves the report in automatic mode</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ApprovalDecision</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-out" style="--kc:#264653">&#8594; Approval</span></div>
+</div>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-rtr" data-agent-id="finalizerGate$13" data-output-key="ReviewReport" data-output-color="#6a994e" data-input-keys="Approval">
+<div class="node-card-header"><span class="topology-badge rtr">Router</span><span class="agent-name">finalizerGate</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">FinalizerGate</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Applies the human reviewer&#39;s edits</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReviewReport</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">ConditionalPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; Approval</span><span class="key-pill key-out" style="--kc:#6a994e">&#8594; ReviewReport</span></div>
+</div>
+<ul>
+<li>
+<div class="condition-label">when: edits requested, or contest after the last round</div>
+<div class="node-card node-border-seq" data-agent-id="finalization$0$13" data-output-key="ReviewReport" data-output-color="#6a994e" data-input-keys="Approval">
+<div class="node-card-header"><span class="topology-badge seq">Sequence</span><span class="agent-name">finalization</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">Finalization</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Applies the human reviewer&#39;s final edits</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReviewReport</span></div>
+<div class="node-detail"><span class="nd-label">Planner</span> <span class="nd-value">SequentialPlanner</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; Approval</span><span class="key-pill key-out" style="--kc:#6a994e">&#8594; ReviewReport</span></div>
+</div>
+<ul>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="applyFinalFeedback$0$0$13" data-output-key="ActiveFindings" data-output-color="#f4a261" data-input-keys="@AgenticScope,Findings,Approval">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">applyFinalFeedback</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ApplyFinalFeedback</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Applies the last contest decision when no revision is left</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Finding&gt;</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#264653">&#8592; Findings</span><span class="key-pill key-in" style="--kc:#264653">&#8592; Approval</span><span class="key-pill key-out" style="--kc:#f4a261">&#8594; ActiveFindings</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="scoreCalibrator$1$0$13" data-output-key="Scores" data-output-color="#e63946" data-input-keys="@AgenticScope,ScoreCard,ActiveFindings,DiffStats,PrSummary">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">scoreCalibrator</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ScoreCalibrator</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Applies the score caps and the verdict floor</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">Scores</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#264653">&#8592; ScoreCard</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; DiffStats</span><span class="key-pill key-in" style="--kc:#d62828">&#8592; PrSummary</span><span class="key-pill key-out" style="--kc:#e63946">&#8594; Scores</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-ai" data-agent-id="reportFinalizer$2$0$13" data-output-key="ReportDraft" data-output-color="#457b9d" data-input-keys="Approval,ReportDraft,ActiveFindings">
+<div class="node-card-header"><span class="topology-badge ai">AI</span><span class="agent-name">reportFinalizer</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReportFinalizer</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Applies the human reviewer&#39;s edits to the report</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReportDraft</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; Approval</span><span class="key-pill key-in" style="--kc:#457b9d">&#8592; ReportDraft</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-out" style="--kc:#457b9d">&#8594; ReportDraft</span></div>
+</div>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="reportAssembler$3$0$13" data-output-key="ReviewReport" data-output-color="#6a994e" data-input-keys="@AgenticScope,PullRequest,ReportDraft,ActiveFindings,Scores,Verdict,VerdictReasoning">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">reportAssembler</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReportAssembler</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Renders the report from the prose and the review data</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReviewReport</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#7b2d8e">&#8592; PullRequest</span><span class="key-pill key-in" style="--kc:#457b9d">&#8592; ReportDraft</span><span class="key-pill key-in" style="--kc:#f4a261">&#8592; ActiveFindings</span><span class="key-pill key-in" style="--kc:#e63946">&#8592; Scores</span><span class="key-pill key-in" style="--kc:#2a9d8f">&#8592; Verdict</span><span class="key-pill key-in" style="--kc:#e9c46a">&#8592; VerdictReasoning</span><span class="key-pill key-out" style="--kc:#6a994e">&#8594; ReviewReport</span></div>
+</div>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<div class="node-card node-border-nonai" data-agent-id="reportExporter$14" data-output-key="FinalReport" data-output-color="#e63946" data-input-keys="@AgenticScope,ReviewReport,Approval">
+<div class="node-card-header"><span class="topology-badge nonai">Action</span><span class="agent-name">reportExporter</span></div>
+<div class="node-details">
+<div class="node-detail"><span class="nd-label">Type</span> <span class="nd-value">ReportExporter</span></div>
+<div class="node-detail"><span class="nd-label">Desc</span> <span class="nd-value">Writes the final report to report.md and report.json</span></div>
+<div class="node-detail"><span class="nd-label">Returns</span> <span class="nd-value">ReviewReport</span></div>
+</div>
+<div class="key-flow"><span class="key-pill key-in" style="--kc:#264653">&#8592; @AgenticScope</span><span class="key-pill key-in" style="--kc:#6a994e">&#8592; ReviewReport</span><span class="key-pill key-in" style="--kc:#264653">&#8592; Approval</span><span class="key-pill key-out" style="--kc:#e63946">&#8594; FinalReport</span></div>
+</div>
+</li>
+</ul>
+</li>
+</ul></div>
+</div>
+</section>
+<footer class="footer">Generated by LangChain4j at 2026-10-08 23:09:09</footer>
+</main>
+<script>
+function toggle(id) {
+    var body = document.getElementById(id);
+    body.classList.toggle('collapsed');
+    body.previousElementSibling.classList.toggle('collapsed');
+}
+
+function toggleTools() {
+    document.querySelectorAll('.tool-row').forEach(function(row) {
+        row.classList.toggle('tool-hidden');
+    });
+}
+
+function toggleRow(rowId) {
+    var trigger = document.querySelector('[data-row-id="' + rowId + '"]');
+    var arrow = trigger ? trigger.querySelector('.row-toggle') : null;
+    var collapsing = arrow && !arrow.classList.contains('collapsed');
+    if (arrow) arrow.classList.toggle('collapsed');
+    var children = document.querySelectorAll('[data-parent-row="' + rowId + '"]');
+    children.forEach(function(row) {
+        if (collapsing) {
+            row.classList.add('row-hidden');
+            hideDescendants(row.getAttribute('data-row-id'));
+        } else {
+            row.classList.remove('row-hidden');
+        }
+    });
+}
+
+function hideDescendants(rowId) {
+    document.querySelectorAll('[data-parent-row="' + rowId + '"]').forEach(function(row) {
+        row.classList.add('row-hidden');
+        hideDescendants(row.getAttribute('data-row-id'));
+    });
+}
+
+function toggleDataFlow() {
+    var svg = document.getElementById('df-svg');
+    if (!svg) return;
+    svg.classList.toggle('df-hidden');
+}
+
+function drawDataFlow() {
+    var svg = document.getElementById('df-svg');
+    var tree = svg ? svg.parentElement : null;
+    if (!svg || !tree) return;
+
+    // Size SVG to match tree
+    svg.style.width = tree.scrollWidth + 'px';
+    svg.style.height = tree.scrollHeight + 'px';
+
+    // Remove old paths
+    svg.querySelectorAll('.df-path').forEach(function(p) { p.remove(); });
+
+    var treeRect = tree.getBoundingClientRect();
+
+    // Build producer map: outputKey -> [node, ...]
+    var prodMap = {};
+    tree.querySelectorAll('.node-card[data-output-key]').forEach(function(n) {
+        var k = n.getAttribute('data-output-key');
+        if (!prodMap[k]) prodMap[k] = [];
+        prodMap[k].push(n);
+    });
+
+    // For each consumer node, draw edges from matching producers
+    tree.querySelectorAll('.node-card[data-input-keys]').forEach(function(consumer) {
+        var keys = consumer.getAttribute('data-input-keys').split(',');
+        var cRect = consumer.getBoundingClientRect();
+        var cx = cRect.left + cRect.width / 2 - treeRect.left;
+        var cy = cRect.top - treeRect.top;
+
+        keys.forEach(function(key) {
+            var producers = prodMap[key];
+            if (!producers) return;
+            producers.forEach(function(producer) {
+                if (producer === consumer) return;
+                // Skip if producer is an ancestor or descendant (structural edge)
+                if (producer.contains(consumer) || consumer.contains(producer)) return;
+
+                var color = producer.getAttribute('data-output-color') || '#999';
+                var pRect = producer.getBoundingClientRect();
+                var px = pRect.left + pRect.width / 2 - treeRect.left;
+                var py = pRect.bottom - treeRect.top;
+
+                var markerId = 'ah-' + Math.abs(hashCode(key));
+                drawEdge(svg, px, py, cx, cy, color, markerId);
+            });
+        });
+    });
+}
+
+function drawEdge(svg, x1, y1, x2, y2, color, markerId) {
+    var dx = x2 - x1;
+    var dy = y2 - y1;
+    var dist = Math.sqrt(dx*dx + dy*dy);
+    // Control point offset perpendicular to the line
+    var bend = Math.min(60, dist * 0.3);
+    // Offset to the right of the direction vector
+    var nx = -dy / (dist || 1) * bend;
+    var ny =  dx / (dist || 1) * bend;
+    var cpx = (x1 + x2) / 2 + nx;
+    var cpy = (y1 + y2) / 2 + ny;
+
+    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M' + x1 + ',' + y1 + ' Q' + cpx + ',' + cpy + ' ' + x2 + ',' + y2);
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '1.8');
+    path.setAttribute('stroke-dasharray', '6,4');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('opacity', '0.55');
+    path.setAttribute('class', 'df-path');
+    path.setAttribute('marker-end', 'url(#' + markerId + ')');
+    svg.appendChild(path);
+}
+
+function hashCode(s) {
+    var h = 0;
+    for (var i = 0; i < s.length; i++) {
+        h = ((h << 5) - h) + s.charCodeAt(i);
+        h |= 0;
+    }
+    return h;
+}
+
+document.addEventListener('DOMContentLoaded', drawDataFlow);
+window.addEventListener('resize', drawDataFlow);
+</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 600" width="860" height="600" role="img" aria-label="Model selection: every AI agent asks ModelSelection for a tier at each call; a forced tier wins, otherwise the agent&#x27;s base tier is escalated when the scope shows its trigger and the cost cap is not reached; ChatModels maps the tier to the provider&#x27;s small, medium or large model, and every call is costed into the CostLedger.">
+<title>Model selection: every AI agent asks ModelSelection for a tier at each call; a forced tier wins, otherwise the agent's base tier is escalated when the scope shows its trigger and the cost cap is not reached; ChatModels maps the tier to the provider's small, medium or large model, and every call is costed into the CostLedger.</title>
+<style>
+.bg{fill:#ffffff}
+text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;font-size:11px;fill:#1f2328}
+.n{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:11.5px}
+.h{font-weight:600}
+.r{font-weight:400}
+.s,.p,.l{fill:#59636e}
+.s{font-size:10.5px}
+.p{font-style:italic;font-size:10.5px}
+.k{font-size:10px;letter-spacing:.08em;fill:#59636e;font-weight:600}
+.box{fill:#f6f8fa;stroke:#6e7781}
+.code{stroke-dasharray:4 3}
+.grp{fill:none;stroke:#afb8c1}
+.lane{fill:#f6f8fa;stroke:none}
+.ghost{fill:none;stroke-dasharray:3 3}
+.e{fill:none;stroke:#6e7781;stroke-width:1.2}
+.ah{fill:#6e7781}
+.acc.box{fill:#ddf4ff;stroke:#0969da}
+.acc.grp,.acc.ghost,.acc.e{stroke:#0969da}
+.acc.ghost{fill:none}
+.acc.ah,text.acc{fill:#0969da}
+@media (prefers-color-scheme:dark){
+.bg{fill:#0d1117}
+text{fill:#e6edf3}
+.s,.p,.l,.k{fill:#9198a1}
+.box{fill:#161b22;stroke:#8b949e}
+.grp{stroke:#3d444d}
+.lane{fill:#151b23}
+.e{stroke:#8b949e}
+.ah{fill:#8b949e}
+.acc.box{fill:#0f2541;stroke:#4493f8}
+.acc.grp,.acc.ghost,.acc.e{stroke:#4493f8}
+.acc.ah,text.acc{fill:#4493f8}
+.acc.ghost{fill:none}
+}
+</style>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="ah"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="ah acc"/></marker>
+</defs>
+<rect width="860" height="600" class="bg"/>
+<text x="20" y="22" class="k">MODEL SELECTION, AT EVERY CALL</text>
+<rect x="20" y="36" width="160" height="76" rx="4" class="box"/>
+<text x="100" y="64.5" class="h" text-anchor="middle">AI agent</text>
+<text x="100" y="77.5" class="s" text-anchor="middle">@ChatModelSupplier</text>
+<text x="100" y="90.5" class="s" text-anchor="middle">(AgenticScope)</text>
+<rect x="240" y="36" width="210" height="76" rx="4" class="lane"/>
+<text x="250" y="58" class="n">ModelSelection</text>
+<text x="250" y="71" class="s">1  --model-tier forces a tier</text>
+<text x="250" y="84" class="s">2  else escalate on a trigger</text>
+<text x="250" y="97" class="s">3  unless the cost cap is hit</text>
+<rect x="510" y="36" width="160" height="76" rx="4" class="lane"/>
+<text x="590" y="58" class="n" text-anchor="middle">ChatModels</text>
+<text x="590" y="71" class="s" text-anchor="middle">per --provider:</text>
+<text x="590" y="84" class="s" text-anchor="middle">AnthropicModels</text>
+<text x="590" y="97" class="s" text-anchor="middle">OpenAiModels</text>
+<rect x="740" y="36" width="100" height="22" rx="4" class="lane"/>
+<text x="790" y="50.5" class="h" text-anchor="middle">small model</text>
+<polyline points="670,74 738,47" class="e" marker-end="url(#a)"/>
+<rect x="740" y="63" width="100" height="22" rx="4" class="lane"/>
+<text x="790" y="77.5" class="h" text-anchor="middle">medium model</text>
+<polyline points="670,74 738,74" class="e" marker-end="url(#a)"/>
+<rect x="740" y="90" width="100" height="22" rx="4" class="lane"/>
+<text x="790" y="104.5" class="h" text-anchor="middle">large model</text>
+<polyline points="670,74 738,101" class="e" marker-end="url(#a)"/>
+<polyline points="180,74 238,74" class="e" marker-end="url(#a)"/>
+<text x="209" y="68" class="l" text-anchor="middle">scope</text>
+<polyline points="450,74 508,74" class="e" marker-end="url(#a)"/>
+<text x="479" y="68" class="l" text-anchor="middle">tier</text>
+<rect x="20" y="140" width="310" height="40" rx="4" class="lane"/>
+<text x="175" y="157" class="n" text-anchor="middle">AgenticScope</text>
+<text x="175" y="170" class="s" text-anchor="middle">options, triage, diff stats, contested finding, critique</text>
+<polyline points="290,140 290,114" class="e" marker-end="url(#a)"/>
+<text x="296" y="131" class="l">triggers</text>
+<rect x="350" y="140" width="130" height="40" rx="4" class="lane"/>
+<text x="415" y="157" class="n" text-anchor="middle">CostLedger</text>
+<text x="415" y="170" class="s" text-anchor="middle">spend vs --max-cost</text>
+<polyline points="415,140 415,114" class="e" marker-end="url(#a)"/>
+<text x="421" y="131" class="l">cap reached?</text>
+<rect x="510" y="140" width="160" height="40" rx="4" class="lane"/>
+<text x="590" y="157" class="n" text-anchor="middle">CostTrackingListener</text>
+<text x="590" y="170" class="s" text-anchor="middle">cost per agent</text>
+<polyline points="590,112 590,138" class="e" marker-end="url(#a)"/>
+<text x="596" y="129" class="l">every call</text>
+<polyline points="510,160 482,160" class="e" marker-end="url(#a)"/>
+<text x="20" y="218" class="k">TIER PER AGENT</text>
+<rect x="20" y="228" width="280" height="344" rx="6" class="lane"/>
+<text x="32" y="248" class="h">small model</text>
+<rect x="310" y="228" width="300" height="344" rx="6" class="lane"/>
+<text x="322" y="248" class="h">medium model</text>
+<rect x="620" y="228" width="220" height="344" rx="6" class="lane"/>
+<text x="632" y="248" class="h">large model</text>
+<text x="32" y="270" class="n">prTriage · questionGenerator</text>
+<text x="32" y="285" class="n">testReviewer · docsApiReviewer</text>
+<text x="32" y="300" class="n">docsApiReviewerFallback</text>
+<text x="32" y="315" class="n">lenientScorer · reportCritic</text>
+<text x="32" y="330" class="n">reportFinalizer</text>
+<text x="322" y="270" class="n">scorer · neutralScorer</text>
+<text x="322" y="285" class="n">skepticalScorer · chunkReviewer</text>
+<text x="322" y="300" class="n">findingProsecutor · findingDefender</text>
+<text x="322" y="315" class="n">correctnessReviewerFallback</text>
+<text x="322" y="330" class="n">securityReviewerFallback</text>
+<text x="632" y="270" class="p">only by escalation</text>
+<rect x="32" y="350" width="146" height="24" rx="4" class="box"/>
+<text x="105" y="365.5" class="n" text-anchor="middle">contextGatherer</text>
+<rect x="322" y="350" width="146" height="24" rx="4" class="box ghost acc"/>
+<text x="395" y="365.5" class="n acc" text-anchor="middle">contextGatherer</text>
+<polyline points="178,362 320,362" class="e acc" marker-end="url(#aa)"/>
+<text x="250" y="357" class="l acc" text-anchor="middle">risk ≥ medium</text>
+<rect x="32" y="381" width="146" height="24" rx="4" class="box"/>
+<text x="105" y="396.5" class="n" text-anchor="middle">usefulnessAssessor</text>
+<rect x="322" y="381" width="146" height="24" rx="4" class="box ghost acc"/>
+<text x="395" y="396.5" class="n acc" text-anchor="middle">usefulnessAssessor</text>
+<polyline points="178,393 320,393" class="e acc" marker-end="url(#aa)"/>
+<text x="250" y="388" class="l acc" text-anchor="middle">feature or refactor</text>
+<rect x="32" y="412" width="146" height="24" rx="4" class="box"/>
+<text x="105" y="427.5" class="n" text-anchor="middle">designReviewer</text>
+<rect x="322" y="412" width="146" height="24" rx="4" class="box ghost acc"/>
+<text x="395" y="427.5" class="n acc" text-anchor="middle">designReviewer</text>
+<polyline points="178,424 320,424" class="e acc" marker-end="url(#aa)"/>
+<text x="250" y="419" class="l acc" text-anchor="middle">large or refactor</text>
+<rect x="322" y="443" width="146" height="24" rx="4" class="box"/>
+<text x="395" y="458.5" class="n" text-anchor="middle">correctnessReviewer</text>
+<rect x="632" y="443" width="146" height="24" rx="4" class="box ghost acc"/>
+<text x="705" y="458.5" class="n acc" text-anchor="middle">correctnessReviewer</text>
+<polyline points="468,455 630,455" class="e acc" marker-end="url(#aa)"/>
+<text x="550" y="450" class="l acc" text-anchor="middle">high risk, large, --deep</text>
+<rect x="322" y="474" width="146" height="24" rx="4" class="box"/>
+<text x="395" y="489.5" class="n" text-anchor="middle">securityReviewer</text>
+<rect x="632" y="474" width="146" height="24" rx="4" class="box ghost acc"/>
+<text x="705" y="489.5" class="n acc" text-anchor="middle">securityReviewer</text>
+<polyline points="468,486 630,486" class="e acc" marker-end="url(#aa)"/>
+<text x="550" y="481" class="l acc" text-anchor="middle">security-sensitive, --deep</text>
+<rect x="322" y="505" width="146" height="24" rx="4" class="box"/>
+<text x="395" y="520.5" class="n" text-anchor="middle">debateJudge</text>
+<rect x="632" y="505" width="146" height="24" rx="4" class="box ghost acc"/>
+<text x="705" y="520.5" class="n acc" text-anchor="middle">debateJudge</text>
+<polyline points="468,517 630,517" class="e acc" marker-end="url(#aa)"/>
+<text x="550" y="512" class="l acc" text-anchor="middle">critical finding</text>
+<rect x="322" y="536" width="146" height="24" rx="4" class="box"/>
+<text x="395" y="551.5" class="n" text-anchor="middle">reportWriter</text>
+<rect x="632" y="536" width="146" height="24" rx="4" class="box ghost acc"/>
+<text x="705" y="551.5" class="n acc" text-anchor="middle">reportWriter</text>
+<polyline points="468,548 630,548" class="e acc" marker-end="url(#aa)"/>
+<text x="550" y="543" class="l acc" text-anchor="middle">criticized draft</text>
+<rect x="20" y="581" width="22" height="12" rx="3" class="box"/>
+<text x="48" y="591" class="s">AI agent</text>
+<rect x="114.8" y="581" width="22" height="12" rx="3" class="box ghost acc"/>
+<text x="142.8" y="591" class="s">same agent on the escalated tier</text>
+</svg>

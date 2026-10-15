@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 490" width="860" height="490" role="img" aria-label="Report: inside reviewRevisionLoop, reportQualityLoop has the writer produce the prose, reportAssembler render findings, scores and verdict from the data and the critic score the result, until it passes; approvalGate asks the human in interactive mode, and a contest starts another pass; finalizerGate applies the final edits and reportExporter writes the files.">
+<title>Report: inside reviewRevisionLoop, reportQualityLoop has the writer produce the prose, reportAssembler render findings, scores and verdict from the data and the critic score the result, until it passes; approvalGate asks the human in interactive mode, and a contest starts another pass; finalizerGate applies the final edits and reportExporter writes the files.</title>
+<style>
+.bg{fill:#ffffff}
+text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;font-size:11px;fill:#1f2328}
+.n{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:11.5px}
+.h{font-weight:600}
+.r{font-weight:400}
+.s,.p,.l{fill:#59636e}
+.s{font-size:10.5px}
+.p{font-style:italic;font-size:10.5px}
+.k{font-size:10px;letter-spacing:.08em;fill:#59636e;font-weight:600}
+.box{fill:#f6f8fa;stroke:#6e7781}
+.code{stroke-dasharray:4 3}
+.grp{fill:none;stroke:#afb8c1}
+.lane{fill:#f6f8fa;stroke:none}
+.ghost{fill:none;stroke-dasharray:3 3}
+.e{fill:none;stroke:#6e7781;stroke-width:1.2}
+.ah{fill:#6e7781}
+.acc.box{fill:#ddf4ff;stroke:#0969da}
+.acc.grp,.acc.ghost,.acc.e{stroke:#0969da}
+.acc.ghost{fill:none}
+.acc.ah,text.acc{fill:#0969da}
+@media (prefers-color-scheme:dark){
+.bg{fill:#0d1117}
+text{fill:#e6edf3}
+.s,.p,.l,.k{fill:#9198a1}
+.box{fill:#161b22;stroke:#8b949e}
+.grp{stroke:#3d444d}
+.lane{fill:#151b23}
+.e{stroke:#8b949e}
+.ah{fill:#8b949e}
+.acc.box{fill:#0f2541;stroke:#4493f8}
+.acc.grp,.acc.ghost,.acc.e{stroke:#4493f8}
+.acc.ah,text.acc{fill:#4493f8}
+.acc.ghost{fill:none}
+}
+</style>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="ah"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="ah acc"/></marker>
+</defs>
+<rect width="860" height="490" class="bg"/>
+<rect x="20" y="20" width="820" height="270" rx="6" class="grp"/>
+<text x="30" y="37" class="n h">reviewRevisionLoop</text>
+<text x="830" y="37" class="p" text-anchor="end">@LoopAgent · up to 3 passes</text>
+<rect x="36" y="120" width="110" height="44" rx="4" class="lane"/>
+<text x="91" y="139" class="h" text-anchor="middle">earlier steps</text>
+<text x="91" y="152" class="s" text-anchor="middle">debates, scores</text>
+<rect x="166" y="52" width="460" height="200" rx="6" class="grp"/>
+<text x="176" y="69" class="n h">reportQualityLoop</text>
+<text x="616" y="69" class="p" text-anchor="end">@LoopAgent · up to 3 rounds</text>
+<rect x="182" y="120" width="120" height="44" rx="4" class="box"/>
+<text x="242" y="139" class="n" text-anchor="middle">reportWriter</text>
+<text x="242" y="152" class="s" text-anchor="middle">prose only</text>
+<rect x="338" y="120" width="140" height="44" rx="4" class="box code acc"/>
+<text x="408" y="139" class="n" text-anchor="middle">reportAssembler</text>
+<text x="408" y="152" class="s" text-anchor="middle">renders the data</text>
+<rect x="514" y="120" width="100" height="44" rx="4" class="box"/>
+<text x="564" y="139" class="n" text-anchor="middle">reportCritic</text>
+<text x="564" y="152" class="s" text-anchor="middle">score 0..1</text>
+<polyline points="146,142 180,142" class="e" marker-end="url(#a)"/>
+<polyline points="91,120 91,100 408,100 408,118" class="e acc" marker-end="url(#aa)"/>
+<text x="250" y="95" class="l acc" text-anchor="middle">findings, scores, verdict</text>
+<polyline points="302,142 336,142" class="e" marker-end="url(#a)"/>
+<polyline points="478,142 512,142" class="e" marker-end="url(#a)"/>
+<polyline points="564,164 564,200 242,200 242,166" class="e" marker-end="url(#a)"/>
+<text x="403" y="216" class="l" text-anchor="middle">until score ≥ 0.85 in round 1, ≥ 0.7 later, or the cost cap</text>
+<text x="403" y="236" class="s" text-anchor="middle">every MEDIUM+ finding is listed even if the prose leaves it out</text>
+<rect x="646" y="52" width="178" height="158" rx="6" class="grp"/>
+<text x="656" y="69" class="n h">approvalGate</text>
+<text x="656" y="83" class="p">@ConditionalAgent</text>
+<rect x="660" y="98" width="150" height="44" rx="4" class="box"/>
+<text x="735" y="117" class="n" text-anchor="middle">humanApproval</text>
+<text x="735" y="130" class="s" text-anchor="middle">interactive mode</text>
+<rect x="660" y="152" width="150" height="44" rx="4" class="box"/>
+<text x="735" y="171" class="n" text-anchor="middle">autoApproval</text>
+<text x="735" y="184" class="s" text-anchor="middle">auto mode</text>
+<polyline points="626,142 644,142" class="e" marker-end="url(#a)"/>
+<polyline points="735,210 735,270 91,270 91,166" class="e" marker-end="url(#a)"/>
+<text x="413" y="265" class="l" text-anchor="middle">CONTEST: debate the contested findings again</text>
+<rect x="20" y="316" width="600" height="130" rx="6" class="grp"/>
+<text x="30" y="333" class="n h">finalizerGate</text>
+<text x="610" y="333" class="p" text-anchor="end">@ConditionalAgent</text>
+<text x="30" y="347" class="s">edits requested, or contest after the last pass</text>
+<rect x="32" y="352" width="576" height="82" rx="6" class="grp"/>
+<text x="42" y="369" class="n h">finalization</text>
+<text x="598" y="369" class="p" text-anchor="end">@SequenceAgent</text>
+<rect x="44" y="390" width="136" height="28" rx="4" class="box code"/>
+<text x="112" y="407.5" class="n" text-anchor="middle">applyFinalFeedback</text>
+<rect x="200" y="390" width="116" height="28" rx="4" class="box code"/>
+<text x="258" y="407.5" class="n" text-anchor="middle">scoreCalibrator</text>
+<polyline points="180,404 198,404" class="e" marker-end="url(#a)"/>
+<rect x="336" y="390" width="116" height="28" rx="4" class="box"/>
+<text x="394" y="407.5" class="n" text-anchor="middle">reportFinalizer</text>
+<polyline points="316,404 334,404" class="e" marker-end="url(#a)"/>
+<rect x="472" y="390" width="116" height="28" rx="4" class="box code"/>
+<text x="530" y="407.5" class="n" text-anchor="middle">reportAssembler</text>
+<polyline points="452,404 470,404" class="e" marker-end="url(#a)"/>
+<polyline points="430,290 430,314" class="e" marker-end="url(#a)"/>
+<rect x="660" y="355" width="180" height="52" rx="4" class="box code"/>
+<text x="750" y="371.5" class="n" text-anchor="middle">reportExporter</text>
+<text x="750" y="384.5" class="s" text-anchor="middle">report.md, report.json</text>
+<text x="750" y="397.5" class="s" text-anchor="middle">not on rejection</text>
+<polyline points="620,381 658,381" class="e" marker-end="url(#a)"/>
+<rect x="20" y="463" width="22" height="12" rx="3" class="box"/>
+<text x="48" y="473" class="s">AI agent</text>
+<rect x="114.8" y="463" width="22" height="12" rx="3" class="box code"/>
+<text x="142.8" y="473" class="s">non-AI agent</text>
+<rect x="232" y="463" width="22" height="12" rx="3" class="grp"/>
+<text x="260" y="473" class="s">composed agent and its pattern</text>
+</svg>

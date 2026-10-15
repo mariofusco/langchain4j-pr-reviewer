@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 480" width="860" height="480" role="img" aria-label="Failures: every agent of the tree reports its exceptions to the single RootErrorHandler, which stops the run on a wiring bug or an account problem, retries a transient failure once, otherwise replaces the agent&#x27;s output with a neutral fallback recorded in DegradedAgents and disclosed in the report, and stops the run when the agent has none.">
+<title>Failures: every agent of the tree reports its exceptions to the single RootErrorHandler, which stops the run on a wiring bug or an account problem, retries a transient failure once, otherwise replaces the agent's output with a neutral fallback recorded in DegradedAgents and disclosed in the report, and stops the run when the agent has none.</title>
+<style>
+.bg{fill:#ffffff}
+text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;font-size:11px;fill:#1f2328}
+.n{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:11.5px}
+.h{font-weight:600}
+.r{font-weight:400}
+.s,.p,.l{fill:#59636e}
+.s{font-size:10.5px}
+.p{font-style:italic;font-size:10.5px}
+.k{font-size:10px;letter-spacing:.08em;fill:#59636e;font-weight:600}
+.box{fill:#f6f8fa;stroke:#6e7781}
+.code{stroke-dasharray:4 3}
+.grp{fill:none;stroke:#afb8c1}
+.lane{fill:#f6f8fa;stroke:none}
+.ghost{fill:none;stroke-dasharray:3 3}
+.e{fill:none;stroke:#6e7781;stroke-width:1.2}
+.ah{fill:#6e7781}
+.acc.box{fill:#ddf4ff;stroke:#0969da}
+.acc.grp,.acc.ghost,.acc.e{stroke:#0969da}
+.acc.ghost{fill:none}
+.acc.ah,text.acc{fill:#0969da}
+@media (prefers-color-scheme:dark){
+.bg{fill:#0d1117}
+text{fill:#e6edf3}
+.s,.p,.l,.k{fill:#9198a1}
+.box{fill:#161b22;stroke:#8b949e}
+.grp{stroke:#3d444d}
+.lane{fill:#151b23}
+.e{stroke:#8b949e}
+.ah{fill:#8b949e}
+.acc.box{fill:#0f2541;stroke:#4493f8}
+.acc.grp,.acc.ghost,.acc.e{stroke:#4493f8}
+.acc.ah,text.acc{fill:#4493f8}
+.acc.ghost{fill:none}
+}
+</style>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="ah"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="ah acc"/></marker>
+</defs>
+<rect width="860" height="480" class="bg"/>
+<rect x="20" y="20" width="170" height="276" rx="6" class="grp"/>
+<text x="30" y="37" class="n h">prReviewSystem</text>
+<text x="30" y="51" class="p">@SequenceAgent</text>
+<rect x="36" y="64" width="138" height="24" rx="4" class="box code"/>
+<text x="105" y="79.5" class="n" text-anchor="middle">prFetcher</text>
+<rect x="36" y="96" width="138" height="24" rx="4" class="box"/>
+<text x="105" y="111.5" class="n" text-anchor="middle">prTriage</text>
+<rect x="36" y="128" width="138" height="24" rx="4" class="grp"/>
+<text x="105" y="144" class="n" text-anchor="middle">reviewPanel</text>
+<text x="105" y="172" class="s" text-anchor="middle">…</text>
+<rect x="36" y="184" width="138" height="24" rx="4" class="box"/>
+<text x="105" y="199.5" class="n" text-anchor="middle">scorer</text>
+<rect x="36" y="216" width="138" height="24" rx="4" class="box"/>
+<text x="105" y="231.5" class="n" text-anchor="middle">reportWriter</text>
+<text x="105" y="270" class="s" text-anchor="middle">every agent of the tree</text>
+<rect x="250" y="20" width="340" height="296" rx="6" class="grp acc"/>
+<text x="260" y="37" class="n h">RootErrorHandler</text>
+<text x="580" y="37" class="p" text-anchor="end">@ErrorHandler</text>
+<polyline points="190,80 248,80" class="e" marker-end="url(#a)"/>
+<text x="219" y="74" class="l" text-anchor="middle">exception</text>
+<rect x="266" y="50" width="300" height="34" rx="4" class="lane"/>
+<text x="416" y="70.5" class="r" text-anchor="middle">missing argument: a wiring bug</text>
+<polyline points="566,67 626,67" class="e" marker-end="url(#a)"/>
+<text x="578" y="62" class="l" text-anchor="middle">yes</text>
+<text x="632" y="71" class="h">stop the run</text>
+<polyline points="416,84 416,102" class="e" marker-end="url(#a)"/>
+<text x="422" y="97" class="l">no</text>
+<rect x="266" y="104" width="300" height="34" rx="4" class="lane"/>
+<text x="416" y="124.5" class="r" text-anchor="middle">account problem: key, model, credits, quota</text>
+<polyline points="566,121 626,121" class="e" marker-end="url(#a)"/>
+<text x="578" y="116" class="l" text-anchor="middle">yes</text>
+<text x="632" y="125" class="h">stop the run</text>
+<polyline points="416,138 416,156" class="e" marker-end="url(#a)"/>
+<text x="422" y="151" class="l">no</text>
+<rect x="266" y="158" width="300" height="34" rx="4" class="lane"/>
+<text x="416" y="178.5" class="r" text-anchor="middle">transient: rate limit, overload, connection</text>
+<polyline points="566,175 626,175" class="e" marker-end="url(#a)"/>
+<text x="578" y="170" class="l" text-anchor="middle">yes</text>
+<text x="632" y="179" class="h">retry the agent once</text>
+<polyline points="416,192 416,210" class="e" marker-end="url(#a)"/>
+<text x="422" y="205" class="l">no</text>
+<rect x="266" y="212" width="300" height="34" rx="4" class="lane"/>
+<text x="416" y="232.5" class="r" text-anchor="middle">the agent has a fallback</text>
+<polyline points="566,229 626,229" class="e" marker-end="url(#a)"/>
+<text x="578" y="224" class="l" text-anchor="middle">yes</text>
+<text x="632" y="233" class="h">neutral result</text>
+<polyline points="416,246 416,264" class="e" marker-end="url(#a)"/>
+<text x="422" y="259" class="l">no</text>
+<rect x="266" y="266" width="300" height="34" rx="4" class="lane"/>
+<text x="416" y="286.5" class="r" text-anchor="middle">no fallback: prFetcher, scorer, …</text>
+<polyline points="566,283 626,283" class="e" marker-end="url(#a)"/>
+<text x="632" y="287" class="h">stop the run</text>
+<polyline points="716,229 800,229 800,338" class="e" marker-end="url(#a)"/>
+<text x="794" y="322" class="l" text-anchor="end">DegradedAgents</text>
+<rect x="20" y="340" width="820" height="104" rx="4" class="lane"/>
+<text x="430" y="395.5" class="n" text-anchor="middle"></text>
+<text x="32" y="360" class="h">fallbacks, listed among the report's limitations</text>
+<text x="32" y="380" class="s">reviewers: no findings</text>
+<text x="304" y="380" class="s">voters: the current score card</text>
+<text x="576" y="380" class="s">reviewPanel: the floor takes over</text>
+<text x="32" y="395" class="s">prosecutor, defender: an UNSURE argument</text>
+<text x="304" y="395" class="s">debateJudge: an UNSURE verdict</text>
+<text x="576" y="395" class="s">reportWriter: a minimal draft</text>
+<text x="32" y="410" class="s">reportCritic: score 1.0</text>
+<text x="304" y="410" class="s">prTriage: a neutral summary</text>
+<text x="576" y="410" class="s">contextGatherer: no context</text>
+<text x="32" y="425" class="s">usefulnessAssessor: unknown</text>
+<rect x="20" y="457" width="22" height="12" rx="3" class="box"/>
+<text x="48" y="467" class="s">AI agent</text>
+<rect x="114.8" y="457" width="22" height="12" rx="3" class="box code"/>
+<text x="142.8" y="467" class="s">non-AI agent</text>
+<rect x="232" y="457" width="22" height="12" rx="3" class="grp"/>
+<text x="260" y="467" class="s">composed agent and its pattern</text>
+</svg>
