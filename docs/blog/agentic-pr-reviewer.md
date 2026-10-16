@@ -395,11 +395,17 @@ The `serve` subcommand starts a local web interface built with Qute templates an
 
 ## Seeing it at work
 
-Let's try the reviewer on a real pull request, [langchain4j#6731](https://github.com/langchain4j/langchain4j/pull/6731), one of ours, which allows any agent or agentic pattern to declare its own activation condition, so that a single agent no longer needs to be wrapped in a `@ConditionalAgent`, as the context gatherer above is. The report produced by the reviewer for this pull request is the following.
+Let's try the reviewer on a real pull request, [langchain4j#6731](https://github.com/langchain4j/langchain4j/pull/6731), one of ours, which allows any agent or agentic pattern to declare its own activation condition, so that a single agent no longer needs to be wrapped in a `@ConditionalAgent`, as the context gatherer above is. An extract of the report produced by the reviewer for this pull request follows.
 
 ![A review rendered by the web interface](/assets/images/posts/agentic/pr-reviewer-web-report.png)
 
 *A review rendered by the web interface*
+
+The same report also scores the pull request, with a score from 0 to 10 for each metric, and an overall score with its confidence, and a verdict: `APPROVE`, `COMMENT` or `REQUEST_CHANGES`. The scores are produced by the scorers, and the verdict is the result of the calibrator.
+
+![The scores produced by the reviewers](/assets/images/posts/agentic/pr-reviewer-scores.png)
+
+*The scores produced by the reviewers*
 
 It is a large change, about 2900 added and 300 deleted lines across 56 files, and we reviewed it using the OpenAI models and the small local decision model for the routing. Making `PrReviewSystem` extend `MonitoredAgent` allows us to save the trace of every review in an HTML page, which shows the topology of the system and the history of its executions:
 
