@@ -393,21 +393,25 @@ The application is packaged as an uber-jar and installed as a JBang alias, so th
 
 The `serve` subcommand starts a local web interface built with Qute templates and htmx, with no JavaScript build at all: a form with the same options of the command line, the past reports, and a page following each review live. An `AgentListener` bean, which the extension attaches to every agent, publishes the start and the end of each agent, with its model, its duration and the running cost of the review, and the page receives them as server-sent events. In interactive mode, the same page shows the clarification questions first, and then the report with a checkbox to contest and one to drop each finding.
 
-![A review rendered by the web interface](/assets/images/posts/agentic/pr-reviewer-web-report.webp)
+## Seeing it at work
+
+Let's try the reviewer on a real pull request, [langchain4j#6731](https://github.com/langchain4j/langchain4j/pull/6731), one of ours, which allows any agent or agentic pattern to declare its own activation condition, so that a single agent no longer needs to be wrapped in a `@ConditionalAgent`, as the context gatherer above is. The report produced by the reviewer for this pull request is the following.
+
+![A review rendered by the web interface](/assets/images/posts/agentic/pr-reviewer-web-report.png)
 
 *A review rendered by the web interface*
 
-## Seeing it at work
+It is a large change, about 2900 added and 300 deleted lines across 56 files, and we reviewed it using the OpenAI models and the small local decision model for the routing. Making `PrReviewSystem` extend `MonitoredAgent` allows us to save the trace of every review in an HTML page, which shows the topology of the system and the history of its executions:
 
-Let's try the reviewer on a real pull request, [langchain4j#6600](https://github.com/langchain4j/langchain4j/pull/6600), a fix to the JSON extractor output guardrail adding about 300 lines across 9 files, using the OpenAI models and the small local decision model for the routing. Making `PrReviewSystem` extend `MonitoredAgent` allows us to save the trace of every review in an HTML page, which shows the topology of the system and the history of its executions:
+![The execution of the review of langchain4j#6731](/assets/images/posts/agentic/pr-reviewer-execution.webp)
 
-![The execution of the review of langchain4j#6600](/assets/images/posts/agentic/pr-reviewer-execution.webp)
+*The execution of the review of langchain4j#6731*
 
-*The execution of the review of langchain4j#6600*
+This execution shows almost all the patterns we discussed at work. The triage classified the change as a large, high-risk feature that could be understood from the diff alone, so the context gatherer was skipped. The decision router selected all five reviewers, which ran in parallel, leaving nothing for the coverage floor to add; the correctness reviewer, escalated to the large model by the risk and the size of the change, took 3 minutes and 48 seconds, two thirds of the whole review, to report no finding at all. Seven files didn't fit in the token budget of the reviewers, five test classes, the documentation and the Revapi configuration, so the large diff gate handed them, as a single chunk, to a chunk reviewer.
 
-This execution shows most of the patterns we discussed at work. The decision router selected only the correctness and the test reviewers, which ran in parallel; the change didn't touch security-sensitive code, nor was it documentation only, so the coverage floor had nothing to add. No finding was contested, so there was no debate. The first score card was borderline, so the three scorers voted in parallel. Then the critic rated the first report 0.77, below the 0.85 required in the first round, and the second one 0.65, so the writer, escalated to the large model, rewrote it twice before the third version passed. The whole review took 3 minutes and cost $0.13.
+The reviewers returned seven findings, all pointing at a valid location of the diff. One of them was contested: the documentation and API reviewer, running on the small model, reported as high severity, but with a confidence of 0.65, that adding a `skipped` component to the `AgentInvocation` record breaks binary compatibility. The prosecutor and the defender argued for the full two rounds, the defender reading the record and searching its usages in the repository, and the judge rejected the finding: the five-argument constructor is kept as an explicit overload, with the same JVM descriptor as the former canonical constructor, so the existing compiled callers still link. Meanwhile, a real compatibility problem survived among the medium-severity findings, and it came from the chunk reviewer: the Revapi configuration suppresses the warning about the abstract `activationCondition` methods added to the public `AgenticService` and `SupervisorAgentService` interfaces, which breaks the source compatibility of anybody implementing them, while the description of the pull request claims that there is no breaking change.
 
-The verdict was `REQUEST_CHANGES`, with an overall score of 7.7 and a confidence of 0.5, on the strength of a medium correctness finding about how the executor composes the results of chained guardrails. A newer result that was explicitly set to `null` cannot replace an older non-null one, because the code merges them with `Optional.ofNullable(newResult.successfulResult()).orElseGet(oldResult::successfulResult)`, so stale data from an earlier guardrail could reach the caller.
+The first score card was borderline on two counts: an overall score of 6.8, within half a point of the approval threshold, and a request for changes without any high-severity finding left to back it. The three scorers then voted in parallel, all three for `REQUEST_CHANGES`, and the average of their cards was again 6.8, with a confidence of 0.5; the calibrator had nothing to correct. Finally, the report went through all the three rounds of the reflection loop: the critic rated the first draft 0.68, so the writer, escalated to the large model, rewrote it twice, but the critic rated the second draft 0.68 again and the third 0.28, and the loop stopped at its last iteration. Here the critic, on the small model, was the weak link of the review: it listed the findings themselves as the issues to fix, as if it had been asked to review the pull request rather than the report about it. The whole review took 5 minutes and 49 seconds and cost $0.45.
 
 ## Conclusion
 
