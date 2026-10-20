@@ -22,6 +22,12 @@ class CostLedgerTest {
         assertThat(PriceTable.cost("gpt-5", 1_000_000, 0, 0, 0)).isCloseTo(1.25, within(1e-9));
         assertThat(PriceTable.cost("gpt-5-mini", 0, 0, 1_000_000, 0)).isCloseTo(0.025, within(1e-9));
         assertThat(PriceTable.price("gpt-55")).isNull();
+        // gpt-6: cache writes are billed, and prompts above 272K tokens are priced at 2x input and 1.5x output
+        assertThat(PriceTable.cost("gpt-6-luna", 1_000_000, 0, 0, 0)).isCloseTo(0.20, within(1e-9));
+        assertThat(PriceTable.cost("gpt-6-luna", 100_000, 10_000, 0, 0)).isCloseTo(0.015, within(1e-9));
+        assertThat(PriceTable.cost("gpt-6-luna", 0, 0, 0, 1_000_000)).isCloseTo(0.125, within(1e-9));
+        assertThat(PriceTable.cost("gpt-6.1-sol", 100_000, 10_000, 0, 0)).isCloseTo(0.30, within(1e-9));
+        assertThat(PriceTable.cost("gpt-6.1-sol", 300_000, 10_000, 0, 0)).isCloseTo(1.35, within(1e-9));
     }
 
     @Test

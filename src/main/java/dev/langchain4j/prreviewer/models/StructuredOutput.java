@@ -54,6 +54,12 @@ public class StructuredOutput {
     }
 
     @Produces
+    @ModelName("openai-economy-tools")
+    ModelBuilderCustomizer<OpenAiChatModelBuilder> openAiEconomyTools() {
+        return openAi();
+    }
+
+    @Produces
     @ModelName("openai-standard-tools")
     ModelBuilderCustomizer<OpenAiChatModelBuilder> openAiStandardTools() {
         return openAi();

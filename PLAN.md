@@ -356,9 +356,9 @@ Every model is a named configuration `<provider>-<tier>`, plus OpenAI variants f
 
 | Tier (size) | Anthropic | OpenAI | OpenAI tool variant |
 |---|---|---|---|
-| ECONOMY (small) | `anthropic-economy`: claude-haiku-5-5, 16K tokens | `openai-economy`: gpt-5-nano, effort `low`, 16K | — (gpt-5-nano has no `none` effort) |
-| STANDARD (medium) | `anthropic-standard`: claude-sonnet-5-5, 32K | `openai-standard`: gpt-5.6-luna, effort `medium`, 64K | `openai-standard-tools`: effort `none` |
-| PREMIUM (large) | `anthropic-premium`: claude-opus-5-5, 32K | `openai-premium`: gpt-5.1, effort `high`, 64K | `openai-premium-tools`: effort `none` |
+| ECONOMY (small) | `anthropic-economy`: claude-haiku-5-5, 16K tokens | `openai-economy`: gpt-6-luna, effort `low`, 16K | `openai-economy-tools`: effort `none` |
+| STANDARD (medium) | `anthropic-standard`: claude-sonnet-5-5, 32K | `openai-standard`: gpt-6-luna, effort `medium`, 64K | `openai-standard-tools`: effort `none` |
+| PREMIUM (large) | `anthropic-premium`: claude-opus-5-5, 32K | `openai-premium`: gpt-6.1-sol, effort `high`, 64K | `openai-premium-tools`: gpt-5.1, effort `none` (gpt-6.1-sol has no `none` effort and no function tools on chat completions) |
 
 All with a 10-minute timeout. Anthropic: thinking blocks returned and sent back (`thinking.return-thinking`,
 `thinking.send-thinking`), `cache-system-messages` and `cache-tools`, no effort setting. OpenAI: strict JSON schemas.
@@ -397,7 +397,7 @@ quarkus.langchain4j.anthropic.anthropic-economy.chat-model.cache-tools=true
 quarkus.langchain4j.openai-standard-tools.chat-model.provider=openai
 quarkus.langchain4j.openai.openai-standard-tools.api-key=${OPENAI_API_KEY:dummy}
 quarkus.langchain4j.openai.openai-standard-tools.timeout=10m
-quarkus.langchain4j.openai.openai-standard-tools.chat-model.model-name=gpt-5.6-luna
+quarkus.langchain4j.openai.openai-standard-tools.chat-model.model-name=gpt-6-luna
 quarkus.langchain4j.openai.openai-standard-tools.chat-model.reasoning-effort=none
 quarkus.langchain4j.openai.openai-standard-tools.chat-model.max-completion-tokens=64000
 ```
@@ -888,7 +888,7 @@ Departures from the first design, found while building it; they still hold after
 | Report | Writer returns prose (`ReportDraft`); `reportAssembler` renders findings, scores and verdict | No finding invented or lost; the critic checks the rendered report |
 | Model-facing records | `RawFinding`, `ScoreCard` with `MetricScore`, `DebateOutcome`, `ReportDraft` | No nullable or map fields in JSON schemas; ids, verification and calibration stay in code |
 | Prompt layout | PR bundle in the user message; system message holds the role and the guard | Untrusted content stays out of system prompts |
-| Output budget | 16K small; 32K (Anthropic) or 64K (OpenAI) for the others; 10-minute timeout | Thinking shares the budget; a gpt-5.1 correctness review used 38K tokens |
+| Output budget | 16K small, 32K medium and large (Anthropic); 16K small, 64K medium and large (OpenAI); 10-minute timeout | Thinking shares the budget; a gpt-5.1 correctness review used 38K tokens |
 | Unsettled findings | `UNSURE` never drives caps or the floor | Otherwise a contest after the last round changed nothing |
 | Debaters' input | Only the changes of the finding's file | Four debater turns each resent up to 60K tokens |
 | Retries | Timeouts not retried by the agent handler | Each retry may last the full timeout and bypass the cost cap |
@@ -896,7 +896,7 @@ Departures from the first design, found while building it; they still hold after
 | Security heuristic | Component names with word guards, dangerous calls, secrets, dependency changes | `token`, `auth`, `cert` matched `TokenUsage`, `Author`, `uncertain` |
 | Account errors | Stop the run at the first agent | A "credit balance too low" refusal used to degrade four agents before the scorer stopped |
 | Providers | Anthropic and OpenAI behind the same tiers | The tier abstraction needed no change |
-| OpenAI tool models | `reasoning_effort: none` where supported | gpt-5.6-luna rejects function tools with a reasoning effort |
+| OpenAI tool models | `reasoning_effort: none` where supported | gpt-6-luna accepts function tools on chat completions only with effort `none` |
 | Token estimate | 3.5 characters per token | Offline and free; only used for budgets |
 
 Measured on 2026-10-14 with OpenAI models: COMMENT 8.2/10 on the test PR for $0.50, $0.39 of it the large-model
