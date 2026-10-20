@@ -13,9 +13,9 @@ author: mariofusco
 
 In previous articles we discussed why no single agentic pattern can cover all use cases, introducing a [generic `Planner` abstraction](https://quarkus.io/blog/agentic-ai-patterns/) to define custom orchestration strategies, and we showed how the [voting pattern and dynamic chat model selection](https://quarkus.io/blog/introducing-voting-pattern/) make an agentic system more reliable and more cost-efficient. Each of those articles focused on one pattern, applied to a deliberately small example. This time we want to see what happens when many of these patterns have to work together in a real application, with real costs, real failures, and a human who wants to have the last word.
 
-As maintainers of LangChain4j, we review a lot of pull requests, so the use case came naturally: an agentic reviewer of GitHub pull requests. Given a pull request, it produces a report saying what is good, what is wrong and what could be improved, with every problem anchored to a file and a line of the diff. It also gives a score from 0 to 10 for usefulness, correctness, conciseness, security, test coverage, maintainability, API and documentation, and PR hygiene, plus an overall score with its confidence, and a verdict: `APPROVE`, `COMMENT` or `REQUEST_CHANGES`. It reads GitHub only through the read-only GitHub MCP server and never writes to it: its output is a Markdown report, the same report in JSON, and an HTML trace of the execution of its agents.
+As maintainers of LangChain4j, we review a lot of pull requests, so the use case came naturally: an agentic reviewer of GitHub pull requests. Given a pull request, it produces a report saying what is good, what is wrong and what could be improved, with every problem anchored to a file and a line of the diff. It also gives a score from 0 to 10 for usefulness, correctness, conciseness, security, test coverage, maintainability, API and documentation, and PR hygiene, plus an overall score with its confidence, and a verdict: `APPROVE`, `COMMENT` or `REQUEST_CHANGES`. It only reads GitHub, with a read-only token, and never writes to it: its output is a Markdown report, the same report in JSON, and an HTML trace of the execution of its agents.
 
-The reviewer is a Quarkus application built with the Quarkus LangChain4j extensions, version 1.15 on LangChain4j 1.21: `quarkus-langchain4j-agentic` for the agents, the Anthropic and OpenAI extensions for the chat models, `quarkus-langchain4j-typesafe` for the decision model and `quarkus-langchain4j-mcp` for the GitHub tools. The agents are plain Java interfaces written with the declarative agentic API: the extension finds them at build time, validates how they are wired together and registers each of them as a CDI bean. The reviewer can be used both from the command line and from a local web interface. Let's see how it works.
+The reviewer is a Quarkus application built with the Quarkus LangChain4j extensions, version 1.15 on LangChain4j 1.21: `quarkus-langchain4j-agentic` for the agents, the Anthropic and OpenAI extensions for the chat models, `quarkus-langchain4j-typesafe` for the decision model, and `quarkus-github-api` to read GitHub. The agents are plain Java interfaces written with the declarative agentic API: the extension finds them at build time, validates how they are wired together and registers each of them as a CDI bean. The reviewer can be used both from the command line and from a local web interface. Let's see how it works.
 
 ## A deterministic backbone, with model judgment inside
 
@@ -84,38 +84,24 @@ public class ReviewBundleBuilder {
 }
 ```
 
-## Fetching the pull request through MCP
+## Reading GitHub
 
-The reviewer reads GitHub through the [GitHub MCP server](https://github.com/github/github-mcp-server), running read-only in Docker and configured with the `quarkus-langchain4j-mcp` extension:
-
-```properties
-quarkus.langchain4j.mcp.github-local.transport-type=stdio
-quarkus.langchain4j.mcp.github-local.command=docker,run,-i,--rm,-e,GITHUB_PERSONAL_ACCESS_TOKEN,-e,GITHUB_READ_ONLY=1,-e,GITHUB_TOOLSETS=repos\\,pull_requests\\,issues,ghcr.io/github/github-mcp-server
-quarkus.langchain4j.mcp.github-local.environment.GITHUB_PERSONAL_ACCESS_TOKEN=${github.token:none}
-```
-
-The extension turns each configured server into an `McpClient` bean qualified by its name, so the reviewer picks the local or the hosted GitHub server with one property. The client is used in two different ways. The first agent of the sequence calls its tools directly, to fetch the pull request with its diff, commits, CI checks, previous reviews and linked issue: there is no point in asking an LLM what to fetch, when the answer is always the same. Conversely, the agents that need to explore the repository, like the context gatherer collecting the code around the change, get five read-only tools of the same server through a `@ToolProviderSupplier`:
+The reviewer reads GitHub through the [hub4j](https://github.com/hub4j/github-api) client that the [`quarkus-github-api`](https://docs.quarkiverse.io/quarkus-github-api/dev/) extension brings, with a read-only token, in two different ways. The first agent of the sequence reads the pull request with its diff, commits, CI checks, previous reviews and linked issue through a small `GitHubReads` interface: there is no point in asking an LLM what to fetch, when the answer is always the same. Conversely, the agents that need to explore the repository, like the context gatherer collecting the code around the change, get five read-only tools: the `@Tool` methods of a CDI bean, reading files, searching code, reading commits and issues, that the agent declares with `@ToolBox`:
 
 ```java
 public interface ContextGatherer {
 
-    int MAX_TOOL_CALLS = 12;
-
     @SystemMessage(fromResource = "/prompts/analyst-system.md")
     @UserMessage(fromResource = "/prompts/context-gatherer-user.md")
+    @ToolBox(GitHubTools.class)
     @Agent(name = "contextGatherer",
             description = "Reads the repository to collect the code around the change: callers, interfaces, existing tests",
             outputKey = Keys.CODE_CONTEXT)
     String gather(String prOverview, PrSummary prSummary, String diffText);
-
-    @ToolProviderSupplier
-    static ToolProvider tools(@CdiBean GitHubMcp github) {
-        return github.readTools(MAX_TOOL_CALLS);
-    }
 }
 ```
 
-The `@CdiBean` annotation tells the extension to inject that parameter from CDI. The tool provider also enforces a budget on the number of tool calls, so that a curious agent cannot spend the whole review budget browsing the repository. Moreover, this agent runs only when the triage agent says that the diff alone is not enough to understand the change: it is the subagent of a `@ConditionalAgent` whose activation condition reads the `PrSummary` produced by the triage.
+Quarkus LangChain4j generates the executors of these tools at build time, and lets a wrapper bean see every tool call together with the invocation context of the agent call. The reviewer uses one to enforce a budget on the number of tool calls per invocation, so that a curious agent cannot spend the whole review budget browsing the repository. Read-only access is a matter of construction: the interface has no write method, and the bean exposes exactly these five read tools. Moreover, this agent runs only when the triage agent says that the diff alone is not enough to understand the change: it is the subagent of a `@ConditionalAgent` whose activation condition reads the `PrSummary` produced by the triage.
 
 ## Choosing the reviewers with a decision model
 
@@ -338,7 +324,7 @@ quarkus.langchain4j.openai.openai-premium.chat-model.model-name=gpt-5.1
 quarkus.langchain4j.openai.openai-premium.chat-model.reasoning-effort=high
 ```
 
-Each agent then selects its model at every invocation, through the [dynamic chat model selection](https://docs.langchain4j.dev/tutorials/agents/#dynamic-chat-model-selection) also discussed in the previous article. The `@ChatModelSupplier` method receives both a CDI bean, a catalog that is nothing more than an `Instance<ChatModel>` selecting the model beans by name, and the `AgenticScope`, which tells whether the evidence for an escalation is there:
+Each agent then selects its model at every invocation, through the [dynamic chat model selection](https://docs.langchain4j.dev/tutorials/agents/#dynamic-chat-model-selection) also discussed in the previous article. The `@ChatModelSupplier` method receives both a CDI bean, marked `@CdiBean`, a catalog that is nothing more than an `Instance<ChatModel>` selecting the model beans by name, and the `AgenticScope`, which tells whether the evidence for an escalation is there:
 
 ```java
 public interface CorrectnessReviewer {
@@ -419,6 +405,6 @@ The first score card was borderline on two counts: an overall score of 6.8, with
 
 A real application needs more than one agentic pattern, and the reviewer uses many of those made available by LangChain4j: a sequence as its backbone, conditional agents as gates, a decision router choosing the reviewers, a parallel mapper for very large pull requests, debates for the doubtful findings, voting for the borderline scores, reflection loops for the report, and a human in the loop for the final decision. What made them work together was not using any of them everywhere, but each one only where it pays off, while plain code does everything that doesn't need judgment: fetching, validating, calibrating, rendering. The same principle drives the choice of the models, with a small one by default, a larger one only when there is evidence that it is needed, and a decision model, instead of an LLM, for routing.
 
-Quarkus LangChain4j is what turns these patterns into an application. The agent interfaces are detected and validated at build time and become beans, so the whole system is injected like any other service; chat models, decision models and MCP servers are named configurations, and what the agents choose from at run time is the set of beans the extension builds from them; the listener that prices every call and the one that feeds the web page are beans the extension attaches to every model and every agent; and the same core serves a command line and a web interface. The complete source code of the reviewer is available [here](https://github.com/mariofusco/langchain4j-pr-reviewer).
+Quarkus LangChain4j is what turns these patterns into an application. The agent interfaces are detected and validated at build time and become beans, so the whole system is injected like any other service; chat models and decision models are named configurations, and what the agents choose from at run time is the set of beans the extension builds from them; the tools of the agents are the methods of a bean, with their executors generated at build time; the listener that prices every call and the one that feeds the web page are beans the extension attaches to every model and every agent; and the same core serves a command line and a web interface. The complete source code of the reviewer is available [here](https://github.com/mariofusco/langchain4j-pr-reviewer).
 
 In the near future we plan to keep growing the set of agentic patterns available out-of-the-box, in LangChain4j and in its Quarkus extension, using real applications like this one to find out what is still missing. Stay tuned!

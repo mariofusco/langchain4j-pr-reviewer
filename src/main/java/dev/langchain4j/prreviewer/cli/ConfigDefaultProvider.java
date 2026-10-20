@@ -14,7 +14,7 @@ import picocli.CommandLine.Model.OptionSpec;
 public class ConfigDefaultProvider implements IDefaultValueProvider {
 
     static final Set<String> REVIEW_OPTIONS = Set.of("provider", "decision-model", "router-threshold", "mode", "deep",
-            "model-tier", "max-cost", "max-debates", "max-files", "max-diff-tokens", "max-chunks", "mcp");
+            "model-tier", "max-cost", "max-debates", "max-files", "max-diff-tokens", "max-chunks");
 
     @Override
     public String defaultValue(ArgSpec arg) {
@@ -26,8 +26,7 @@ public class ConfigDefaultProvider implements IDefaultValueProvider {
         String key;
         if (command.equals("review") && name.equals("out")) {
             key = "reviewer.output-dir";
-        } else if ((command.equals("review") || command.equals("run") || command.equals("serve") && name.equals("mcp"))
-                && REVIEW_OPTIONS.contains(name)) {
+        } else if ((command.equals("review") || command.equals("run")) && REVIEW_OPTIONS.contains(name)) {
             key = "reviewer." + name;
         } else {
             return null;

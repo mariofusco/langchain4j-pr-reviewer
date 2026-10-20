@@ -4,7 +4,6 @@ import dev.langchain4j.prreviewer.app.ReviewOutcome;
 import dev.langchain4j.prreviewer.app.ReviewRequest;
 import dev.langchain4j.prreviewer.app.ReviewService;
 import dev.langchain4j.prreviewer.app.RunEvent;
-import dev.langchain4j.prreviewer.github.GitHubMcp;
 import dev.langchain4j.prreviewer.github.PrUrl;
 import dev.langchain4j.prreviewer.hitl.StdinReviewerConsole;
 import dev.langchain4j.prreviewer.model.DecisionProvider;
@@ -50,9 +49,6 @@ public class ReviewCommand implements Callable<Integer> {
 
     @ArgGroup(validate = false, heading = "%nBudgets%n", order = 3)
     Budgets budgets = new Budgets();
-
-    @ArgGroup(validate = false, heading = "%nGitHub%n", order = 4)
-    GitHub github = new GitHub();
 
     static class Review {
         @Option(names = "--mode", description = "AUTO or INTERACTIVE (default: ${DEFAULT-VALUE})")
@@ -106,19 +102,11 @@ public class ReviewCommand implements Callable<Integer> {
         int maxChunks = 4;
     }
 
-    static class GitHub {
-        @Option(names = "--mcp", description = "GitHub MCP server: LOCAL (Docker) or REMOTE (default: ${DEFAULT-VALUE})")
-        GitHubMcp.Transport mcp = GitHubMcp.Transport.LOCAL;
-    }
-
     @Spec
     CommandSpec spec;
 
     @Inject
     ReviewService reviews;
-
-    @Inject
-    GitHubMcp gitHubMcp;
 
     @Override
     public Integer call() {
@@ -126,7 +114,6 @@ public class ReviewCommand implements Callable<Integer> {
         ReviewOptions options = options();
         PrintWriter out = spec.commandLine().getOut();
         Ansi ansi = spec.commandLine().getColorScheme().ansi();
-        gitHubMcp.use(github.mcp);
         Consumer<RunEvent> progress = review.quiet ? event -> {} : new ProgressPrinter(spec.commandLine().getErr(), ansi);
         StdinReviewerConsole console = review.mode == ReviewMode.INTERACTIVE
                 ? new StdinReviewerConsole(review.approveOnEof)

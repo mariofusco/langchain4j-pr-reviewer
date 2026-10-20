@@ -17,8 +17,9 @@
 
         <!-- Quarkus core BOM: quarkus-langchain4j 1.15.0.CR1 is built against Quarkus 3.40.0 -->
         <quarkus.version>3.40.0</quarkus.version>
-        <!-- brings langchain4j 1.21.0 and the beta modules (agentic, agentic-patterns, mcp, typesafe) at 1.21.0-beta31 -->
+        <!-- brings langchain4j 1.21.0 and the beta modules (agentic, agentic-patterns, typesafe) at 1.21.0-beta31 -->
         <quarkus-langchain4j.version>1.15.0.CR1</quarkus-langchain4j.version>
+        <quarkus-github-api.version>1.330.0</quarkus-github-api.version>
 
         <htmx.version>2.0.11</htmx.version>
         <htmx-ext-sse.version>2.2.4</htmx-ext-sse.version>
@@ -49,7 +50,7 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- agents built and validated at build time; chat models, decision models and the GitHub MCP client from configuration -->
+        <!-- agents built and validated at build time; chat models, decision models from configuration -->
         <dependency>
             <groupId>io.quarkiverse.langchain4j</groupId>
             <artifactId>quarkus-langchain4j-agentic</artifactId>
@@ -67,8 +68,9 @@
             <artifactId>quarkus-langchain4j-typesafe</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.quarkiverse.langchain4j</groupId>
-            <artifactId>quarkus-langchain4j-mcp</artifactId>
+            <groupId>io.quarkiverse.githubapi</groupId>
+            <artifactId>quarkus-github-api</artifactId>
+            <version>${quarkus-github-api.version}</version>
         </dependency>
         <!-- DecisionRouterPlanner, VotingPlanner, DebatePlanner -->
         <dependency>
@@ -119,7 +121,7 @@
             <version>${commonmark.version}</version>
         </dependency>
 
-        <!-- parsing MCP tool results, writing report.json -->
+        <!-- writing report.json -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jackson</artifactId>
@@ -184,7 +186,7 @@
     </build>
 
     <profiles>
-        <!-- integration tests (*IT) against GitHub MCP, Ollama and the model providers run only on demand: mvn verify -Pit -->
+        <!-- integration tests (*IT) against Ollama and the model providers run only on demand: mvn verify -Pit -->
         <profile>
             <id>it</id>
             <build>

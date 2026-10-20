@@ -1,5 +1,9 @@
 # LangChain4j PR Reviewer — Plan
 
+*Revision 6, 2026-10-20: GitHub is read through the hub4j client of the `quarkus-github-api` extension instead of the
+GitHub MCP server; the agents get their tools with `@ToolBox`, their budget from a tool executor wrapper. Planned in
+`GITHUB-API-PLAN.md`, implemented on the `github-api` branch; the notes are in section 21.5.*
+
 *Revision 5, 2026-10-15: the reviewer moves to Quarkus through the quarkus-langchain4j extensions, gains a local web
 interface, and its CLI becomes a set of picocli subcommands with shell completion. Implemented the same day on the
 `quarkus-port` branch; what the implementation changed in this plan is listed in section 21.4. Revision 4 (2026-10-08) described the
@@ -7,7 +11,7 @@ plain-Java implementation that exists today; its design carries over, and the no
 section 22. Decisions in section 0 come from the grilling rounds of 2026-10-15.*
 
 *Target stack: Java 21, Quarkus 3.40, quarkus-langchain4j 1.15.x (1.15.0.CR1 until the final release), which brings
-langchain4j 1.21.0 and the beta modules (`langchain4j-agentic`, `-agentic-patterns`, `-mcp`, `-typesafe`) at
+langchain4j 1.21.0 and the beta modules (`langchain4j-agentic`, `-agentic-patterns`, `-typesafe`) at
 1.21.0-beta31. Every agentic API the reviewer uses exists in that version: `DecisionRouterPlanner` and the typesafe
 module first shipped in 1.21.0-beta31, and the agentic modules are identical in 1.21 and 1.22.*
 
@@ -26,7 +30,7 @@ module first shipped in 1.21.0-beta31, and the agentic modules are identical in 
 | Model selection | Scope-driven `@ChatModelSupplier(AgenticScope)`: a small, medium or large model per agent, escalated on evidence. |
 | Voting and debate | Voting only for borderline score cards; debate only for contested findings. Both gated and capped. |
 | Verdict and scores | The model proposes; rules only lower scores and make the verdict stricter. |
-| Code access | GitHub only, through the GitHub MCP server, read-only. No clone, build or test execution. |
+| Code access | GitHub only, through the hub4j client of `quarkus-github-api`, read-only. No clone, build or test execution. |
 | Human in the loop | Synchronous: clarify before the review; approve, edit, contest or drop findings, or reject after it. |
 | Output | `report.md`, `report.json` and the monitor trace `trace.html`. Never writes to GitHub. |
 
@@ -83,10 +87,10 @@ interface (login, per-user tokens); concurrent reviews; resuming a review after 
 5. **Expensive patterns only when strictly necessary.** Voting on borderline cards, debate on contested findings, capped.
 6. **The model owns the judgment, the rules own the floor.**
 7. **Human gates are ordinary agents guarded by `mode`**; defaults are seeded so no key is missing.
-8. **Read-only by construction.** MCP allowlist of read tools, read-only token, no agent that writes to GitHub.
+8. **Read-only by construction.** A `GitHubReads` interface without write methods, five read tools, a read-only token, no agent that writes to GitHub.
 9. **PR content is untrusted** in prompts, in findings (validated against the diff) and now in the browser (escaped).
 10. **Observed from day one.** Monitored root, HTML trace, cost ledger per agent and model, live progress.
-11. **Framework-managed wiring.** Models, decision models, MCP clients and listeners come from configuration and CDI;
+11. **Framework-managed wiring.** Models, decision models, tools and listeners come from configuration and CDI;
     the agentic system is built and validated by the Quarkus extension.
 
 ---
@@ -109,10 +113,11 @@ pr-reviewer (Quarkus uber-jar, @QuarkusMain)
 │                 │
 │                 ▼
 │         PrReviewSystem (@Inject; built and validated by quarkus-langchain4j-agentic)
-│           static suppliers and conditions reach CDI beans: ModelCatalog, DecisionModels, GitHubMcp, ActiveReview
+│           static suppliers and conditions reach CDI beans: ModelCatalog, DecisionModels, GitHubReads, ActiveReview
 │                 │
 │                 ▼
-│   quarkus-langchain4j: anthropic · openai (named chat models) · typesafe (named decision models) · mcp (GitHub)
+│   quarkus-langchain4j: anthropic · openai (named chat models) · typesafe (named decision models)
+│   quarkus-github-api: the hub4j client (GitHub), behind GitHubReads; GitHubTools (@ToolBox) and ToolBudget (executor wrapper)
 │   CDI listeners: CostTrackingListener (ChatModelListener), DecisionCostListener (DecisionModelListener),
 │                  AgentAttribution and ProgressListener (AgentListener)
 ```
@@ -135,7 +140,7 @@ review and a long-running server does not accumulate executions.
 
 ```
 prReviewSystem  @SequenceAgent, root, MonitoredAgent; @BeforeCall seeds defaults; @ErrorHandler for the whole tree
-├─ prFetcher              non-AI bean      prUrl → pullRequest (MCP executeTool)
+├─ prFetcher              non-AI bean      prUrl → pullRequest (hub4j, plus one REST call for the diff)
 ├─ diffPreprocessor       non-AI bean      → diffStats; also writes changes, diffText, prOverview, diffChunks
 ├─ diffText               projection (new) → diffText
 ├─ prOverview             projection (new) → prOverview
@@ -308,7 +313,7 @@ lookups.
 | Method kind | Gets collaborators through |
 |---|---|
 | `@ChatModelSupplier` (per call; once at build time with every argument null) | `@CdiBean ModelCatalog` and `AgenticScope` parameters; at build time, the base tier from an `Arc` lookup |
-| `@ToolProviderSupplier` (once, at build time) | `@CdiBean GitHubMcp` parameter |
+| `@ToolBox(GitHubTools.class)` on the agent method | the extension resolves the `GitHubTools` singleton, into which `GitHubReads` is injected |
 | `@PlannerSupplier` (no-arg; once at build time and once per review) | `Arc`: `DecisionModels` and `ActiveReview`; configured defaults at build time |
 | `@ActivationCondition`, `@ExitCondition` | scope parameters, plus `Arc` for `ActiveReview` (cost cap) |
 | `@ErrorHandler` | `ErrorContext` only; per-review data comes from its scope |
@@ -321,24 +326,29 @@ lookups.
 The plan was to turn non-AI agents into `@ApplicationScoped` beans with instance `@Agent` methods. The Phase 0 spike
 showed that langchain4j builds a class whose `@Agent` method is not static as an AI service, which Quarkus then refuses
 ("not able to determine class as an AiService at build time"). They keep static methods and reach beans through
-`Arc` (`GitHubMcp.get()`, `ActiveReview.get()`, `ReviewDefaults.get()`); those beans are `@Unremovable`.
+`Arc` (`GitHubReads.get()`, `ActiveReview.get()`, `ReviewDefaults.get()`); those beans are `@Unremovable`.
 
 ### 6.4 Tools and their budgets
 
-`GitHubMcp.readTools(budget)` builds an `McpToolProvider` over the selected GitHub MCP client, filtered to the read
-tools (`get_file_contents`, `search_code`, `get_commit`, `list_commits`, `issue_read`), and wraps it in a
-`BudgetedToolProvider` (the separate `GitHubTools` bean of the first draft was folded into `GitHubMcp`):
+`GitHubTools` is a `@Singleton` bean with five `@Tool` methods delegating to `GitHubReads`: `get_file_contents`,
+`search_code`, `get_commit`, `list_commits` and `issue_read`, the names the prompts use (they were the MCP server's).
+The context gatherer, the prosecutor and the defender declare `@ToolBox(GitHubTools.class)`; the agentic extension
+hands the bean to the agent and Quarkus runs the tools through the executors it generated at build time (the bean is
+a singleton because the extension looks the tool metadata up by the class of the instance; a client proxy would also be
+found, through a subclass check).
 
-- langchain4j asks a tool provider for its tools on every agent call (`ToolService.createContext`), so the wrapper
-  returns executors bound to a fresh counter per call;
-- past the budget (contextGatherer 12, prosecutor and defender 6 each), a tool returns "Tool budget exhausted: answer
-  with what you have" instead of calling the server;
-- argument errors are returned to the model as text.
+`ToolBudget` is a `QuarkusToolExecutor.Wrapper` bean: Quarkus applies it to every tool call with the invocation
+context of the AI service call, whose `invocationId` is one agent invocation with its whole tool loop and whose
+`interfaceName` is the agent interface. It counts the GitHub tool calls per invocation id (contextGatherer 12,
+prosecutor and defender 6 each) and, past the budget, answers "Tool budget exhausted: answer with what you have, without
+calling tools" without reading GitHub. The round trips of an invocation are bounded separately by the extension:
+`quarkus.langchain4j.ai-service.max-tool-executions=16` (default 10, which the budget of 12 could never reach; this
+deprecated property is the one the agents read, not `max-tool-calling-round-trips`).
 
-Execution errors, transport failures included, reach the model as text, which is langchain4j's default; today a
-transport failure fails the agent and the error handler substitutes a fallback. The budget bounds what a failing
-server can cost. `@McpToolBox` is not used: it offers every tool of a client, with no filter, and only on single-method
-agents.
+A tool that fails, because the model guessed a wrong path or sha, or because GitHub refused the request, reaches the
+model as text, the extension's default for tool errors, so the model corrects itself; a tool argument of the wrong
+type fails the invocation, and the error handler substitutes the agent's fallback. Code search returns file paths
+without the matching lines: hub4j has no support for the text-match media type.
 
 ### 6.5 Monitoring and trace
 
@@ -381,7 +391,6 @@ reviewer.max-files=50
 reviewer.max-diff-tokens=60000
 reviewer.max-chunks=4
 reviewer.output-dir=review-output
-reviewer.mcp=local
 
 # one block per tier and provider; the economy Anthropic block as an example
 quarkus.langchain4j.anthropic-economy.chat-model.provider=anthropic
@@ -436,8 +445,8 @@ model does the same. Simpler than the `enable-integration` switch first planned,
   web form offers only those, and the CLI rejects the others with a message naming the missing variable;
 - a call that still reaches a provider with the placeholder fails as an account problem and stops the run;
 - `ReviewerConfigSource` provides `github.token`: `GITHUB_TOKEN`, else the output of `gh auth token`; when neither
-  exists, `GitHubMcp` refuses to start the server and says how to set a token. The MCP client starts lazily, so
-  `completion` and `--help` never run Docker.
+  exists, `HubGitHubReads` refuses to build the client and says how to set a token. The client is built on first use,
+  so `completion` and `--help` never reach GitHub.
 
 ### 7.4 Decision models
 
@@ -453,34 +462,32 @@ Named typesafe configurations, all with a decision-cost listener bean:
 so it builds `new DecisionRouterPlanner(decisionModels.get(options.decisionModel()), options.routerThreshold())` from
 `ActiveReview`. `--decision-model openai` is parked (section 21).
 
-### 7.5 GitHub MCP clients
+### 7.5 GitHub client
 
-```properties
-quarkus.langchain4j.mcp.github-local.transport-type=stdio
-quarkus.langchain4j.mcp.github-local.command=docker,run,-i,--rm,-e,GITHUB_PERSONAL_ACCESS_TOKEN,-e,GITHUB_READ_ONLY=1,-e,GITHUB_TOOLSETS=repos\\,pull_requests\\,issues,ghcr.io/github/github-mcp-server
-quarkus.langchain4j.mcp.github-local.environment.GITHUB_PERSONAL_ACCESS_TOKEN=${github.token}
-quarkus.langchain4j.mcp.github-local.tool-execution-timeout=60s
-quarkus.langchain4j.mcp.github-local.cache-tool-list=true
-
-quarkus.langchain4j.mcp.github-remote.transport-type=streamable-http
-quarkus.langchain4j.mcp.github-remote.url=https://api.githubcopilot.com/mcp/
-quarkus.langchain4j.mcp.github-remote.header.Authorization=Bearer ${github.token}
-quarkus.langchain4j.mcp.github-remote.tool-execution-timeout=60s
-```
-
-The comma inside `GITHUB_TOOLSETS` must be escaped in the list; Phase 0 confirms the escaping with one logged start.
-MCP clients start lazily (the extension's own test proves an unused client never connects), so only the selected one
-runs. `GitHubMcp` (`@ApplicationScoped`) picks `github-local` or `github-remote` from `reviewer.mcp`;
-`GitHubMcp.gateway()` (for `PullRequestReader`) and `GitHubMcp.readTools(budget)` use it.
+`io.quarkiverse.githubapi:quarkus-github-api:1.330.0` brings hub4j 1.330 (`org.kohsuke:github-api`) and its
+native-image substitutions; at this version it provides no CDI bean and no configuration. `HubGitHubReads`
+(`@ApplicationScoped`, the `GitHubReads` bean) builds the client on first use with `GitHubBuilder`: the token of
+`github.token`, and the `FAIL` rate-limit and abuse-limit handlers, so a refused request fails instead of sleeping until
+the limit resets (hub4j's default waits up to an hour). Repositories and the fetched pull request are cached in the
+bean, so the lists of files, commits, reviews and comments reuse the pull request object. There is no property to set:
+the client needs the token only.
 
 ---
 
 ## 8. GitHub access
 
-Unchanged in substance. `prFetcher` calls the MCP client directly (`executeTool`) for the metadata, diff, files,
-commits, check runs, existing reviews and the linked issue, and parses the JSON (text or structured content). The read
-tools of section 6.4 are the only ones offered to AI agents; prompts tell them to read files at the head sha. The token
-is a read-only fine-grained PAT; the local server also runs with `GITHUB_READ_ONLY=1`.
+`GitHubReads` is the seam: typed methods returning small records (`PullRequestData`, `ChangedFile`, `CommitInfo`,
+`CheckRun`, `Review`, `ReviewComment`, `Issue`, `Contents`, `CodeMatch`, `PullRequestSummary`), implemented by
+`HubGitHubReads` over hub4j and, in tests, by `FixtureGitHubReads` over recorded REST responses. hub4j objects never
+cross it. `prFetcher` reads the pull request through `PullRequestReader`: metadata, the unified diff, commits, check
+runs of the head sha, reviews and review comments, and the linked issue. hub4j has no call for the unified diff, so
+`unifiedDiff` is one direct REST call (`Accept: application/vnd.github.diff`, 60 s timeout) that returns empty on HTTP
+406, when GitHub refuses a diff above its size limits; the reader then rebuilds it from the per-file patches, as before.
+Review comments arrive flat with `in_reply_to_id` and are grouped under their root comment; the resolved state of a
+thread, which only GraphQL exposes, is no longer shown. A `GitHubAccessException` carries the HTTP status of a refusal,
+and the error handler retries a rate-limited request (403 with a limit message, or 429) once. The tools of section 6.4
+are the only GitHub access offered to AI agents; prompts tell them to read files at the head sha. The token should be a
+read-only fine-grained PAT; nothing but the interface and the token prevents a write.
 
 ---
 
@@ -616,14 +623,14 @@ Micrometer metrics are out of scope.
 | Command | What it does |
 |---|---|
 | `pr-reviewer review <PR> [options]` | Reviews one pull request; console interaction in interactive mode |
-| `pr-reviewer serve [--port 8080] [--mcp local\|remote]` | Starts the web interface on 127.0.0.1 and waits (`Quarkus.waitForExit()`) |
+| `pr-reviewer serve [--port 8080]` | Starts the web interface on 127.0.0.1 and waits (`Quarkus.waitForExit()`) |
 | `pr-reviewer eval run [--eval FILE] [--runs 3] [--limit N] [review options]` | Scores the reviewer against the eval set (today's `EvalRunner`) |
 | `pr-reviewer eval build-set [--repos a/b,c/d] [--per-repo 4] [--max-files 15] [--max-lines 800] [--out FILE]` | Builds the eval set from closed pull requests (today's `EvalSetBuilder`) |
 | `pr-reviewer completion` | Prints the bash/zsh completion script |
 
 `review` options, grouped in the help with `@ArgGroup` headings: *Review* (`--mode`, `--deep`, `--out`,
 `--approve-on-eof`, `--quiet`), *Models* (`--provider`, `--model-tier`, `--decision-model`, `--router-threshold`),
-*Budgets* (`--max-cost`, `--max-debates`, `--max-files`, `--max-diff-tokens`, `--max-chunks`), *GitHub* (`--mcp`).
+*Budgets* (`--max-cost`, `--max-debates`, `--max-files`, `--max-diff-tokens`, `--max-chunks`).
 Enum values are case-insensitive. Exit codes: 0 when the review completes (report written, or rejected by the human),
 1 on failure, 2 on a usage error.
 
@@ -650,8 +657,8 @@ output is not a terminal.
 ### 16.4 Completion
 
 `Completion extends AutoComplete.GenerateCompletion` with `@Command(name = "completion")` (the pattern of the Quarkus
-CLI). It completes subcommands, options, enum values (`--mode`, `--provider`, `--model-tier`, `--decision-model`,
-`--mcp`) and paths (`--out`, `--eval`). The pull request argument has no candidates: the script is static. Install:
+CLI). It completes subcommands, options, enum values (`--mode`, `--provider`, `--model-tier`, `--decision-model`)
+and paths (`--out`, `--eval`). The pull request argument has no candidates: the script is static. Install:
 
 ```sh
 pr-reviewer completion > ~/.local/share/bash-completion/completions/pr-reviewer     # bash
@@ -738,9 +745,9 @@ langchain4j-pr-reviewer/
     ├── keys/                  Keys (String constants and their defaults), ScopeState
     ├── model/                 records and enums (ReviewOptions gains provider and decisionModel)
     ├── models/                ModelCatalog, ModelSelection, DecisionModels, StructuredOutput, StatelessAgents
-    ├── github/                GitHubMcp, GitHubGateway, PullRequestReader, BudgetedToolProvider,
+    ├── github/                GitHubReads, HubGitHubReads, GitHubTools, PullRequestReader,
     │                          DiffParser, DiffPreprocessing, PrUrl
-    ├── agents/                AI agent interfaces
+    ├── agents/                AI agent interfaces, ToolBudget
     ├── workflow/              composed agents, non-AI agent beans, projections
     ├── scoring/, hitl/, observability/, eval/
 src/main/resources/            application.properties, prompts/, templates/, META-INF/resources/ (CSS)
@@ -753,7 +760,8 @@ Deleted: `AppContext`, `PrReviewSystems`, `AnthropicModels`, `OpenAiModels`, `Ef
 ### 18.2 Dependencies
 
 - BOMs: `io.quarkus.platform:quarkus-bom:3.40.x`, `io.quarkiverse.langchain4j:quarkus-langchain4j-bom:1.15.0.CR1`.
-- quarkus-langchain4j: `quarkus-langchain4j-agentic`, `-anthropic`, `-openai`, `-typesafe`, `-mcp`.
+- quarkus-langchain4j: `quarkus-langchain4j-agentic`, `-anthropic`, `-openai`, `-typesafe`.
+- GitHub: `io.quarkiverse.githubapi:quarkus-github-api:1.330.0`, which brings hub4j 1.330 (`org.kohsuke:github-api`).
 - langchain4j: `langchain4j-agentic-patterns` (from the BOM, 1.21.0-beta31).
 - Quarkus: `quarkus-picocli`, `quarkus-rest`, `quarkus-rest-jackson`, `quarkus-rest-qute`, `quarkus-rest-csrf`,
   `quarkus-web-dependency-locator`, `quarkus-arc`.
@@ -791,11 +799,11 @@ Deleted: `AppContext`, `PrReviewSystems`, `AnthropicModels`, `OpenAiModels`, `Ef
 
 | Kind | How | Examples |
 |---|---|---|
-| Pure logic (plain JUnit, unchanged apart from the keys) | no CDI | `DiffParser`, `DiffPreprocessing`, `PrUrl`, `Consolidation`, `Caps`, `VerdictRules`, `VotingTrigger`, `ScoreCardVotingStrategy`, `ApprovalCommandParser`, `ReportRenderer`, `PriceTable`, `RootErrorHandler` classification, `BudgetedToolProvider` |
-| System (`@QuarkusTest`, one test profile) | test producers override the provider beans: `@Produces @ModelName("anthropic-standard") ChatModel` … backed by `ScriptedChatModel`, which answers per agent (the current agent comes from `AgentAttribution`); a fake `DecisionModel` per name; a fixture-backed `@McpClientName("github-local") McpClient`; `ScriptedReviewerConsole`; placeholder API keys so startup succeeds | today's `PrReviewSystemTest` and `ScriptedModelReviewTest` scenarios: router activations and floor, AUTO skips the human agents, contest runs one debate and re-scores, drop removes a finding from the floor, voting only when borderline, report loop exits, degradation instead of failure, cost cap skips voting, debates and escalation |
+| Pure logic (plain JUnit, unchanged apart from the keys) | no CDI | `DiffParser`, `DiffPreprocessing`, `PrUrl`, `Consolidation`, `Caps`, `VerdictRules`, `VotingTrigger`, `ScoreCardVotingStrategy`, `ApprovalCommandParser`, `ReportRenderer`, `PriceTable`, `RootErrorHandler` classification, `ToolBudget`, `PullRequestReader` on recorded REST responses |
+| System (`@QuarkusTest`, one test profile) | test producers override the provider beans: `@Produces @ModelName("anthropic-standard") ChatModel` … backed by `ScriptedChatModel`, which answers per agent (the current agent comes from `AgentAttribution`); a fake `DecisionModel` per name; a `@Mock` `GitHubReads` answering from the scenario's fixtures; `ScriptedReviewerConsole`; placeholder API keys so startup succeeds | today's `PrReviewSystemTest` and `ScriptedModelReviewTest` scenarios: router activations and floor, AUTO skips the human agents, contest runs one debate and re-scores, drop removes a finding from the floor, voting only when borderline, report loop exits, degradation instead of failure, cost cap skips voting, debates and escalation |
 | CLI (`@QuarkusMainTest`, `@Launch`) | same producers | `review` with scripted models prints the summary and writes the report; `--help` lists groups and config defaults; `completion` output passes `bash -n`; usage errors exit with 2 |
 | Web (`@QuarkusTest` + RestAssured) | same producers | enqueue → SSE events → report; interactive round trip (questions, contest, approve); queue order and cancel; CSRF and Host rejection; path traversal on downloads; a `<script>` in the PR title and body comes out escaped |
-| Integration (`-Pit`, real services) | real configuration | `OpenAiReviewIT`, `OpenAiRouterIT`, `ReviewRouterIT`/`HostedReviewRouterIT` (scripted reviewers, real decision model), `AnthropicReviewIT` (needs credits), MCP fetch of a public PR on both transports |
+| Integration (`-Pit`, real services) | real configuration | `OpenAiReviewIT`, `OpenAiRouterIT`, `ReviewRouterIT`/`HostedReviewRouterIT` (scripted reviewers, real decision model), `AnthropicReviewIT` (needs credits), `GitHubApiIT` (a public pull request, a file, a directory, a code search and the commit list through the real API; asserts the five tool names) |
 | Documentation | `@QuarkusTest` | `TopologyDocumentationTest` regenerates `docs/topology.html` with `-Dupdate.topology=true` |
 
 Replacing leaf agents with stubs is not reliable under the extension (the root captures its sub-agents once, when it
@@ -872,6 +880,21 @@ OpenAI, account errors).
 Measured: `OpenAiReviewIT` on langchain4j PR 6600 gave `COMMENT` 8.2/10 for $0.28 (before the port: `COMMENT` 8.2/10,
 $0.50; the difference is the length of the large model's correctness review). Account errors from the Quarkus model
 clients (invalid key, unknown model, on both providers) are recognized by the error handler unchanged.
+
+### 21.5 GitHub through quarkus-github-api (2026-10-20)
+
+Planned in `GITHUB-API-PLAN.md` after the review of the quarkus.io article asked why MCP rather than the extension;
+implemented on the `github-api` branch. What the implementation found that the plan did not know:
+
+| Area | Plan | Implementation | Why |
+|---|---|---|---|
+| The extension | Throttled pagination helper and rate-limit retry configuration | Only the hub4j dependency and native-image substitutions; `PagedIterable.withPageSize` and hub4j's own handlers | At 1.330.0 (and 2.0.0.CR7) the runtime jar holds two GraalVM substitutions and nothing else |
+| Tool executors | Quarkus build-time executors, to be confirmed by a spike | Confirmed: the agentic extension passes the bean to `AgentBuilder.tools(...)`, and the Quarkus `AiServices` resolves it against the build-time tool metadata; the wrapper sees a non-null `invocationId` and the agent interface name | `GitHubToolsWiringTest` drives twelve tool calls and the refused thirteenth through a scripted model |
+| Tool loop | Not considered | `quarkus.langchain4j.ai-service.max-tool-executions=16` | The agents read this (deprecated) property; its default of 10 round trips fails the invocation before a budget of 12 is reached, which was already true with the MCP tools |
+| Failures in a tool call (Q10) | Propagate: the agent fails and the error handler substitutes its fallback | GitHub errors reach the model as text; argument type errors fail the invocation | The agentic path builds its executors with exception propagation off, with no hook to change it; the first behaviour is what drawback 4 of the plan preferred anyway |
+| Timeouts | Retried once | Not retried, like model timeouts | The error handler's existing rule: an attempt can run for the whole timeout |
+| `closedPullRequests` | Paged by number | A lazy `Stream` of summaries; details fetched per candidate | Avoids one request per listed pull request |
+| Fixtures | REST shapes under `src/test/resources/github` | As planned, re-recorded with `gh api` for the commits and review comments of 6610 and 6584, plus the whole of 6584 | The MCP shapes of commits and threads differed from REST |
 
 ---
 

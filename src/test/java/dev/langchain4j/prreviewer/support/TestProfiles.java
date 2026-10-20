@@ -16,12 +16,12 @@ public final class TestProfiles {
         }
     }
 
-    /** Real chat models, decision models and GitHub MCP server. */
+    /** Real chat models, decision models and GitHub. */
     public static class RealServices implements QuarkusTestProfile {
         @Override
         public Map<String, String> getConfigOverrides() {
             return Map.of("quarkus.arc.exclude-types", String.join(",", TestChatModels.class.getName(),
-                    TestDecisionModels.class.getName(), FixtureGitHubMcp.class.getName()));
+                    TestDecisionModels.class.getName(), FixtureGitHubReadsBean.class.getName()));
         }
     }
 }

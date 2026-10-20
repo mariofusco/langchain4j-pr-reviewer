@@ -9,6 +9,7 @@ import dev.langchain4j.exception.InvalidRequestException;
 import dev.langchain4j.exception.ModelNotFoundException;
 import dev.langchain4j.exception.RetriableException;
 import dev.langchain4j.exception.TimeoutException;
+import dev.langchain4j.prreviewer.github.GitHubAccessException;
 import dev.langchain4j.prreviewer.keys.Keys;
 import dev.langchain4j.prreviewer.keys.ScopeState;
 import dev.langchain4j.prreviewer.model.DebateOutcome;
@@ -156,7 +157,18 @@ public final class RootErrorHandler {
         if (hasCause(error, TimeoutException.class) || hasCause(error, HttpTimeoutException.class)) {
             return false;
         }
-        return hasCause(error, RetriableException.class) || hasCause(error, ConnectException.class);
+        return hasCause(error, RetriableException.class) || hasCause(error, ConnectException.class)
+                || gitHubRateLimited(error);
+    }
+
+    /** GitHub refusing a request for its rate limits: the client fails the call instead of waiting for the reset. */
+    private static boolean gitHubRateLimited(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof GitHubAccessException github && github.rateLimited()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasCause(Throwable error, Class<? extends Throwable> type) {

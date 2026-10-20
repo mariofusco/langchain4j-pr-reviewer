@@ -83,7 +83,7 @@ text{fill:#e6edf3}
 <rect x="210" y="354" width="140" height="26" rx="4" class="box acc"/>
 <text x="280" y="370.5" class="n" text-anchor="middle">findingDefender</text>
 <text x="210" y="398" class="s">in parallel, 2 rounds, read-only</text>
-<text x="210" y="411" class="s">MCP tools on the file's changes</text>
+<text x="210" y="411" class="s">GitHub tools on the file's changes</text>
 <rect x="374" y="334" width="90" height="32" rx="4" class="box acc"/>
 <text x="419" y="353.5" class="n" text-anchor="middle">debateJudge</text>
 <polyline points="350,333 372,344" class="e acc" marker-end="url(#aa)"/>

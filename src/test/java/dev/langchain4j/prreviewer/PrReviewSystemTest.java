@@ -36,7 +36,7 @@ import dev.langchain4j.prreviewer.model.Severity;
 import dev.langchain4j.prreviewer.model.Verdict;
 import dev.langchain4j.prreviewer.model.Verification;
 import dev.langchain4j.prreviewer.support.FakeDecisionModel;
-import dev.langchain4j.prreviewer.support.FixtureGitHubGateway;
+import dev.langchain4j.prreviewer.support.FixtureGitHubReads;
 import dev.langchain4j.prreviewer.support.ScriptedChatModel;
 import dev.langchain4j.prreviewer.support.ScriptedReviewerConsole;
 import dev.langchain4j.prreviewer.support.TestData;
@@ -111,7 +111,7 @@ class PrReviewSystemTest {
         scenario.reset()
                 .responses(responses)
                 .decisionModel(router)
-                .github(new FixtureGitHubGateway("pr6610", diffOverride));
+                .github(new FixtureGitHubReads("pr6610", diffOverride));
         outcome = reviews.review(new ReviewRequest(ref(), mode, options), console, event -> {});
         return outcome.report();
     }
@@ -333,7 +333,7 @@ class PrReviewSystemTest {
 
     @Test
     void very_large_diff_is_reviewed_in_chunks() {
-        int files = DiffParser.parse(FixtureGitHubGateway.diff6610()).size();
+        int files = DiffParser.parse(FixtureGitHubReads.diff6610()).size();
 
         ReviewReport report = review(new FakeDecisionModel(CORRECTNESS_AND_DESIGN), null, ReviewMode.AUTO,
                 options(2, 60_000, 2.0, 4));
