@@ -18,7 +18,7 @@ import dev.langchain4j.prreviewer.model.Verdict;
 import dev.langchain4j.prreviewer.model.Verification;
 import dev.langchain4j.prreviewer.observability.AgentAttribution;
 import dev.langchain4j.prreviewer.support.FakeDecisionModel;
-import dev.langchain4j.prreviewer.support.FixtureGitHubGateway;
+import dev.langchain4j.prreviewer.support.FixtureGitHubReads;
 import dev.langchain4j.prreviewer.support.ScriptedChatModel;
 import dev.langchain4j.prreviewer.support.ScriptedReviewerConsole;
 import dev.langchain4j.prreviewer.support.TestChatModels;
@@ -58,7 +58,7 @@ class ScriptedModelReviewTest {
         scenario.reset()
                 .responses(responses())
                 .decisionModel(new FakeDecisionModel(everyReviewer))
-                .github(new FixtureGitHubGateway("pr6610"));
+                .github(new FixtureGitHubReads("pr6610"));
         ScriptedReviewerConsole console = new ScriptedReviewerConsole("Compatibility with 1.x is required.",
                 new ApprovalDecision(Decision.EDIT, "Thank the author.", List.of(), List.of()));
         ReviewOptions options = new ReviewOptions(false, 2, 60_000, null, 3, 0.5, 5.0, 4, ModelProvider.ANTHROPIC,

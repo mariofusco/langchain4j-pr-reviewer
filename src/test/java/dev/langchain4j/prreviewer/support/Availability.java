@@ -10,9 +10,6 @@ import java.util.concurrent.TimeUnit;
 /** Conditions of the integration tests: which external services are reachable from here. */
 public final class Availability {
 
-    /** The image of the local GitHub MCP server, as configured in {@code application.properties}. */
-    static final String MCP_IMAGE = "ghcr.io/github/github-mcp-server";
-
     private Availability() {}
 
     /** The GitHub token as the application resolves it: {@code GITHUB_TOKEN}, else {@code gh auth token}. */
@@ -24,18 +21,6 @@ public final class Availability {
         try {
             Process gh = new ProcessBuilder("gh", "auth", "token").start();
             return gh.waitFor(10, TimeUnit.SECONDS) && gh.exitValue() == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    public static boolean githubMcp() {
-        try {
-            if (!githubToken()) {
-                return false;
-            }
-            Process docker = new ProcessBuilder("docker", "image", "inspect", MCP_IMAGE).start();
-            return docker.waitFor(20, TimeUnit.SECONDS) && docker.exitValue() == 0;
         } catch (Exception e) {
             return false;
         }
@@ -55,11 +40,11 @@ public final class Availability {
 
     public static boolean anthropic() {
         String key = System.getenv("ANTHROPIC_API_KEY");
-        return key != null && !key.isBlank() && githubMcp() && localDecisionModel();
+        return key != null && !key.isBlank() && githubToken() && localDecisionModel();
     }
 
     public static boolean openAi() {
         String key = System.getenv("OPENAI_API_KEY");
-        return key != null && !key.isBlank() && githubMcp() && localDecisionModel();
+        return key != null && !key.isBlank() && githubToken() && localDecisionModel();
     }
 }

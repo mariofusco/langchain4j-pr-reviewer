@@ -1,6 +1,5 @@
 package dev.langchain4j.prreviewer.config;
 
-import dev.langchain4j.prreviewer.github.GitHubMcp;
 import dev.langchain4j.prreviewer.model.DecisionProvider;
 import dev.langchain4j.prreviewer.model.ModelProvider;
 import dev.langchain4j.prreviewer.model.ModelTier;
@@ -48,8 +47,4 @@ public interface ReviewerConfig {
 
     @WithDefault("review-output")
     Path outputDir();
-
-    /** GitHub MCP server of this process: the local Docker image or the remote endpoint. */
-    @WithDefault("local")
-    GitHubMcp.Transport mcp();
 }

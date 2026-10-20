@@ -8,7 +8,7 @@ import dev.langchain4j.prreviewer.model.FileChange;
 import dev.langchain4j.prreviewer.model.ModelProvider;
 import dev.langchain4j.prreviewer.model.PullRequest;
 import dev.langchain4j.prreviewer.model.ReviewOptions;
-import dev.langchain4j.prreviewer.support.FixtureGitHubGateway;
+import dev.langchain4j.prreviewer.support.FixtureGitHubReads;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +22,7 @@ class DiffPreprocessingTest {
 
     @Test
     void renders_the_reviewed_diff_with_new_file_line_numbers() {
-        DiffPreprocessing.Result result = DiffPreprocessing.process(pr(FixtureGitHubGateway.diff6610()),
+        DiffPreprocessing.Result result = DiffPreprocessing.process(pr(FixtureGitHubReads.diff6610()),
                 ReviewOptions.defaults());
 
         assertThat(result.diffText()).contains("### File: langchain4j/src/main/java/dev/langchain4j/service/DefaultAiServices.java");
@@ -40,7 +40,7 @@ class DiffPreprocessingTest {
 
     @Test
     void files_beyond_the_limits_go_to_chunks() {
-        DiffPreprocessing.Result result = DiffPreprocessing.process(pr(FixtureGitHubGateway.diff6610()),
+        DiffPreprocessing.Result result = DiffPreprocessing.process(pr(FixtureGitHubReads.diff6610()),
                 new ReviewOptions(false, 2, 60_000, null, 3, 0.5, 2.0, 4, ModelProvider.ANTHROPIC,
                         DecisionProvider.LOCAL));
 

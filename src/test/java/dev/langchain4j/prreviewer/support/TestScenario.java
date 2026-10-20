@@ -1,6 +1,6 @@
 package dev.langchain4j.prreviewer.support;
 
-import dev.langchain4j.prreviewer.github.GitHubGateway;
+import dev.langchain4j.prreviewer.github.GitHubReads;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Map;
 import java.util.Set;
@@ -17,14 +17,14 @@ public class TestScenario {
     private volatile Map<String, Object> responses = TestData.defaultResponses();
     private volatile Set<String> failingTasks = Set.of();
     private volatile FakeDecisionModel decisionModel = new FakeDecisionModel(Map.of());
-    private volatile GitHubGateway github = new FixtureGitHubGateway("pr6610");
+    private volatile GitHubReads github = new FixtureGitHubReads("pr6610");
     private volatile java.util.List<ScriptedChatModel.Call> calls = ScriptedChatModel.newCallLog();
 
     public TestScenario reset() {
         responses = TestData.defaultResponses();
         failingTasks = Set.of();
         decisionModel = new FakeDecisionModel(Map.of());
-        github = new FixtureGitHubGateway("pr6610");
+        github = new FixtureGitHubReads("pr6610");
         calls = ScriptedChatModel.newCallLog();
         return this;
     }
@@ -45,7 +45,7 @@ public class TestScenario {
         return this;
     }
 
-    public TestScenario github(GitHubGateway github) {
+    public TestScenario github(GitHubReads github) {
         this.github = github;
         return this;
     }
@@ -62,7 +62,7 @@ public class TestScenario {
         return decisionModel;
     }
 
-    public GitHubGateway github() {
+    public GitHubReads github() {
         return github;
     }
 

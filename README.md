@@ -3,17 +3,16 @@
 An agentic reviewer for GitHub pull requests, built on `langchain4j-agentic` and running on Quarkus with the
 quarkus-langchain4j extensions. Given a pull request URL it produces a report saying what is good, what is wrong and what could be improved, with scores from 0.0 to 10.0 for usefulness, correctness, conciseness, security, test coverage, maintainability, API and documentation, and PR hygiene, an overall score, a confidence and a verdict (`APPROVE`, `COMMENT`, `REQUEST_CHANGES`). It runs from the command line or in a local web interface.
 
-It reads GitHub only through the read-only GitHub MCP server and **never writes to GitHub**: the output is `report.md`, `report.json` and `trace.html` (the agent monitor's trace of the run).
+It only reads GitHub, through the [hub4j](https://github.com/hub4j/github-api) client of the `quarkus-github-api` extension with a read-only token, and **never writes to GitHub**: the output is `report.md`, `report.json` and `trace.html` (the agent monitor's trace of the run).
 
 The design and its rationale are in [PLAN.md](PLAN.md); the agent topology is rendered in
 [docs/topology.html](docs/topology.html).
 
 ## Quick start
 
-Requirements: Java 21+, Maven, Docker (for the GitHub MCP server), a GitHub token, an Anthropic or OpenAI API key, and a decision model for the reviewer router (by default Ollama serving `tev1:0.8b`). [JBang](https://www.jbang.dev) installs the `pr-reviewer` command.
+Requirements: Java 21+, Maven, a GitHub token, an Anthropic or OpenAI API key, and a decision model for the reviewer router (by default Ollama serving `tev1:0.8b`). [JBang](https://www.jbang.dev) installs the `pr-reviewer` command.
 
 ```sh
-docker pull ghcr.io/github/github-mcp-server
 ollama pull tev1:0.8b                      # or use --decision-model typesafe with TYPESAFE_API_KEY
 export ANTHROPIC_API_KEY=...               # and/or OPENAI_API_KEY
 export GITHUB_TOKEN=...                    # a read-only fine-grained token; falls back to `gh auth token`
@@ -31,7 +30,7 @@ Without JBang, `java -jar target/langchain4j-pr-reviewer-1.0.0-SNAPSHOT-runner.j
 | Command | What it does |
 |---|---|
 | `pr-reviewer review <PR> [options]` | Reviews one pull request; progress on stderr, summary on stdout; console interaction in interactive mode |
-| `pr-reviewer serve [--port 8080] [--mcp local\|remote]` | Starts the web interface on 127.0.0.1 |
+| `pr-reviewer serve [--port 8080]` | Starts the web interface on 127.0.0.1 |
 | `pr-reviewer eval run` / `pr-reviewer eval build-set` | Scores the reviewer against the eval set / builds the eval set, see [Eval](#eval) |
 | `pr-reviewer completion` | Prints the bash/zsh completion script, see [Shell completion](#shell-completion) |
 
@@ -48,7 +47,6 @@ Without JBang, `java -jar target/langchain4j-pr-reviewer-1.0.0-SNAPSHOT-runner.j
 | `--model-tier` | none | Force `economy`, `standard` or `premium` for every agent |
 | `--max-files`, `--max-diff-tokens`, `--max-chunks` | `50`, `60000`, `4` | Size of the reviewed diff, and of the chunked pass over what does not fit |
 | `--max-debates` | `3` | Contested findings debated per revision |
-| `--mcp` | `local` | GitHub MCP server in Docker, or `remote` (`api.githubcopilot.com`) |
 | `--out` | `review-output` | Output directory |
 | `--approve-on-eof` | off | In interactive mode, approve when the input ends |
 | `-q`, `--quiet` | off | Only the summary, without the progress of every agent |
@@ -68,7 +66,7 @@ pr-reviewer completion > ~/.local/share/bash-completion/completions/pr-reviewer 
 echo 'autoload -U +X bashcompinit && bashcompinit; source <(pr-reviewer completion)' >> ~/.zshrc   # zsh
 ```
 
-It completes the commands, the options, their values (`--mode`, `--provider`, `--model-tier`, `--decision-model`, `--mcp`) and paths.
+It completes the commands, the options, their values (`--mode`, `--provider`, `--model-tier`, `--decision-model`) and paths.
 
 ## Configuration
 
@@ -76,7 +74,7 @@ Everything is configured in [`application.properties`](src/main/resources/applic
 
 - `reviewer.*` are the defaults of the review options, shared by the CLI and the web form: `REVIEWER_PROVIDER=openai`, `REVIEWER_MAX_COST=1.0`, ...
 - The chat models are named configurations, one per provider and size: `anthropic-economy`, `anthropic-standard`, `anthropic-premium`, `openai-economy`, `openai-standard`, `openai-premium`, plus `openai-standard-tools` and `openai-premium-tools` for the agents that call tools. To use `gpt-5-mini` as the medium OpenAI model, for instance: `QUARKUS_LANGCHAIN4J_OPENAI_OPENAI_STANDARD_CHAT_MODEL_MODEL_NAME=gpt-5-mini`.
-- The decision models are the named typesafe configurations `local`, `hosted` and `openrouter`; the GitHub MCP servers are `github-local` and `github-remote`.
+- The decision models are the named typesafe configurations `local`, `hosted` and `openrouter`. GitHub needs no configuration beyond the token: the hub4j client is built on first use.
 - Keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `GITHUB_TOKEN` (else `gh auth token`). The application starts with any subset of keys; a provider without its key is refused, by the CLI with the name of the missing variable.
 
 ## Running on OpenAI models
@@ -102,12 +100,12 @@ The root is a deterministic sequence, built entirely with the declarative API; m
 
 ```
 prReviewSystem (sequence, monitored)
-  prFetcher            non-AI   pull request, diff, commits, checks, reviews, linked issue via MCP
+  prFetcher            non-AI   pull request, diff, commits, checks, reviews, linked issue from the GitHub API
   diffPreprocessor     non-AI   parse, classify, render the diff with line numbers, chunk the overflow
   diffText, prOverview, diffChunks   projections of the preprocessor's results
   prTriage             small model   intent, category, size, risk, needs context?
   routingInputs        non-AI   flags for the router
-  contextGate          ->  contextGatherer (small or medium model, read-only MCP tools)
+  contextGate          ->  contextGatherer (small or medium model, read-only GitHub tools)
   clarificationGate    ->  questionGenerator + humanClarification          [interactive]
   reviewBundleBuilder  non-AI   the pull request bundle every reviewer reads
   usefulnessAssessor   small or medium model, asynchronous
@@ -186,10 +184,10 @@ mvn verify          # unit, orchestration, CLI and web tests: no model, no netwo
 mvn verify -Pit     # integration tests, each enabled only when its service is available
 ```
 
-- Orchestration tests (`@QuarkusTest`) run the agentic system Quarkus builds, with every model answered by a scripted model that knows which agent is calling, a fake decision model and GitHub from recorded MCP responses: routing and coverage floor, interactive contest rounds, debates, voting, cost cap, chunked review, failure handling, rejection, edits.
+- Orchestration tests (`@QuarkusTest`) run the agentic system Quarkus builds, with every model answered by a scripted model that knows which agent is calling, a fake decision model and GitHub from recorded API responses: routing and coverage floor, interactive contest rounds, debates, voting, cost cap, chunked review, failure handling, rejection, edits.
 - A scripted-model test runs every real prompt template and structured output through the whole system, and checks the escalations, the cost attribution and the live progress events.
 - Command line tests (`@QuarkusMainTest`) and web tests (RestAssured): help, completion, usage errors, a review end to end; the queue, server-sent events, an interactive round trip, cancellation, escaping, and the refusal of foreign hosts, origins, missing CSRF tokens and path traversal.
-- Integration tests: the GitHub MCP server in Docker, the router on local Ollama and on hosted TypeSafe, full reviews with the real OpenAI or Anthropic models, and the recognition of account errors (invalid key, unknown model) by the error handler.
+- Integration tests: the GitHub API with the token of the environment, the router on local Ollama and on hosted TypeSafe, full reviews with the real OpenAI or Anthropic models, and the recognition of account errors (invalid key, unknown model) by the error handler.
 
 ## Eval
 
@@ -203,4 +201,4 @@ Labels come from what happened to each pull request: `REQUEST_CHANGES` when chan
 
 ## Safety
 
-The GitHub MCP server runs read-only (`GITHUB_READ_ONLY=1`) with only the repos, pull requests and issues toolsets; AI agents get five read tools; use a read-only fine-grained token. Every prompt states that the pull request content is untrusted data, and wraps it in delimiters; the content itself is always in the user message, never in a system prompt. Findings whose location is not in the diff are discarded, which also neutralizes anything smuggled in through the pull request text. The web interface's own protections are described [above](#web-interface).
+GitHub access is read-only by construction: the `GitHubReads` interface has no write method, AI agents get exactly five read tools (`get_file_contents`, `search_code`, `get_commit`, `list_commits`, `issue_read`), each agent invocation has a budget of tool calls, and the token should be a read-only fine-grained one. A GitHub refusal for its rate limits is retried once by the error handler. Every prompt states that the pull request content is untrusted data, and wraps it in delimiters; the content itself is always in the user message, never in a system prompt. Findings whose location is not in the diff are discarded, which also neutralizes anything smuggled in through the pull request text. The web interface's own protections are described [above](#web-interface).

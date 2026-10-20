@@ -1,9 +1,11 @@
 package dev.langchain4j.prreviewer.support;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.Capability;
 import dev.langchain4j.model.chat.ChatModel;
@@ -25,7 +27,8 @@ import java.util.regex.Pattern;
 /**
  * A chat model answering each agent with the scenario's canned response, chosen by the "## Task: name" line its
  * prompt starts with, or by the running agent's name when the scenario has one. A response may be a function of the
- * call, and a {@link RuntimeException} is thrown.
+ * call, a {@link RuntimeException} is thrown, and a {@link ToolExecutionRequest} (or a list of them) is returned as a
+ * tool call, so that a function can drive a tool loop from the results it sees in the call.
  * It declares structured output support like the Anthropic models, so the real prompt templates, response formats and
  * output parsers are all exercised.
  */
@@ -35,7 +38,16 @@ public final class ScriptedChatModel implements ChatModel {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /** One captured call. */
-    public record Call(String agent, String task, String modelName, String system, String user, ChatRequest request) {}
+    public record Call(String agent, String task, String modelName, String system, String user, ChatRequest request) {
+
+        /** The results of the tool calls made so far in this invocation, in order. */
+        public List<String> toolResults() {
+            return request.messages().stream()
+                    .filter(ToolExecutionResultMessage.class::isInstance)
+                    .map(m -> ((ToolExecutionResultMessage) m).text())
+                    .toList();
+        }
+    }
 
     private final String modelName;
     private final TestScenario scenario;
@@ -77,6 +89,12 @@ public final class ScriptedChatModel implements ChatModel {
         if (response == null) {
             throw new AssertionError("No scripted response for " + task);
         }
+        if (response instanceof ToolExecutionRequest toolCall) {
+            return toolCallResponse(List.of(toolCall));
+        }
+        if (response instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof ToolExecutionRequest) {
+            return toolCallResponse((List<ToolExecutionRequest>) list);
+        }
         String text;
         try {
             text = response instanceof String s ? s : JSON.writeValueAsString(wrapIfNeeded(response, request));
@@ -85,6 +103,14 @@ public final class ScriptedChatModel implements ChatModel {
         }
         return ChatResponse.builder()
                 .aiMessage(AiMessage.from(text))
+                .modelName(modelName)
+                .tokenUsage(new TokenUsage(1000, 100))
+                .build();
+    }
+
+    private ChatResponse toolCallResponse(List<ToolExecutionRequest> toolCalls) {
+        return ChatResponse.builder()
+                .aiMessage(AiMessage.from(toolCalls))
                 .modelName(modelName)
                 .tokenUsage(new TokenUsage(1000, 100))
                 .build();

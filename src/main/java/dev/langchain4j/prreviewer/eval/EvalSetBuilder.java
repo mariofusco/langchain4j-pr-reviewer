@@ -1,11 +1,15 @@
 package dev.langchain4j.prreviewer.eval;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import dev.langchain4j.prreviewer.github.GitHubGateway;
-import dev.langchain4j.prreviewer.github.GitHubMcp;
-import dev.langchain4j.prreviewer.github.PullRequestReader;
+import dev.langchain4j.prreviewer.github.GitHubReads;
+import dev.langchain4j.prreviewer.github.GitHubReads.ChangedFile;
+import dev.langchain4j.prreviewer.github.GitHubReads.CommitInfo;
+import dev.langchain4j.prreviewer.github.GitHubReads.PullRequestData;
+import dev.langchain4j.prreviewer.github.GitHubReads.PullRequestSummary;
+import dev.langchain4j.prreviewer.github.GitHubReads.Review;
+import dev.langchain4j.prreviewer.github.GitHubReads.ReviewComment;
+import dev.langchain4j.prreviewer.model.PrRef;
 import dev.langchain4j.prreviewer.model.Verdict;
 import jakarta.inject.Inject;
 import java.nio.file.Files;
@@ -13,7 +17,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.LinkedHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,8 +31,7 @@ import picocli.CommandLine.Option;
  *   <li>REQUEST_CHANGES when a reviewer requested changes, or the pull request was closed unmerged after a review;</li>
  *   <li>COMMENT when it was merged after review comments that the author addressed with later commits;</li>
  *   <li>APPROVE when it was merged without either;</li>
- *   <li>must-find items: review comments by someone other than the author that were addressed: their thread became
- *   outdated (a later commit changed the commented lines) or was resolved, or a later commit followed them.</li>
+ *   <li>must-find items: review comments by someone other than the author that a later commit followed.</li>
  * </ul>
  * Outcomes reflect the maintainers' priorities as well as code quality, so the labels are a floor, not ground truth.
  */
@@ -38,6 +41,9 @@ public class EvalSetBuilder implements Callable<Integer> {
 
     static final List<String> DEFAULT_REPOS = List.of("langchain4j/langchain4j", "quarkusio/quarkus",
             "FasterXML/jackson-databind", "micrometer-metrics/micrometer", "assertj/assertj");
+
+    /** Closed pull requests examined per repository, most recently updated first. */
+    static final int MAX_CANDIDATES = 240;
 
     private static final ObjectMapper JSON = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
@@ -57,14 +63,13 @@ public class EvalSetBuilder implements Callable<Integer> {
     Path out;
 
     @Inject
-    GitHubMcp gitHubMcp;
+    GitHubReads github;
 
     @Override
     public Integer call() throws Exception {
         List<EvalCase> cases = new ArrayList<>();
-        GitHubGateway github = gitHubMcp.gateway();
         for (String repo : repos) {
-            List<EvalCase> selected = selectFrom(github, repo);
+            List<EvalCase> selected = selectFrom(repo);
             System.out.printf(Locale.ROOT, "%s: %d cases%n", repo, selected.size());
             cases.addAll(selected);
         }
@@ -74,100 +79,89 @@ public class EvalSetBuilder implements Callable<Integer> {
         return 0;
     }
 
-    List<EvalCase> selectFrom(GitHubGateway github, String repo) {
+    List<EvalCase> selectFrom(String repo) {
         String[] ownerRepo = repo.split("/");
         Map<Verdict, Integer> quota = new EnumMap<>(Map.of(Verdict.APPROVE, (perRepo + 2) / 3,
                 Verdict.COMMENT, Math.max(1, perRepo / 4), Verdict.REQUEST_CHANGES, (perRepo + 2) / 3));
         List<EvalCase> selected = new ArrayList<>();
-        for (int page = 1; page <= 8 && selected.size() < perRepo; page++) {
-            Map<String, Object> args = new LinkedHashMap<>(Map.of("owner", ownerRepo[0], "repo", ownerRepo[1],
-                    "state", "closed", "sort", "updated", "direction", "desc", "perPage", 30, "page", page));
-            JsonNode list = PullRequestReader.array(json(github.call("list_pull_requests", args)));
-            for (JsonNode summary : list) {
-                if (selected.size() >= perRepo) {
-                    break;
-                }
+        try {
+            Iterator<PullRequestSummary> candidates = github.closedPullRequests(ownerRepo[0], ownerRepo[1])
+                    .limit(MAX_CANDIDATES).iterator();
+            while (candidates.hasNext() && selected.size() < perRepo) {
+                PullRequestSummary summary = candidates.next();
                 try {
-                    EvalCase candidate = label(github, ownerRepo[0], ownerRepo[1], summary);
+                    EvalCase candidate = label(ownerRepo[0], ownerRepo[1], summary);
                     if (candidate != null && quota.getOrDefault(candidate.expectedVerdict(), 0) > 0) {
                         quota.merge(candidate.expectedVerdict(), -1, Integer::sum);
                         selected.add(candidate);
                     }
                 } catch (RuntimeException e) {
-                    System.err.println("skipping " + repo + "#" + summary.path("number").asInt() + ": " + e.getMessage());
+                    System.err.println("skipping " + repo + "#" + summary.number() + ": " + e.getMessage());
                 }
             }
+        } catch (RuntimeException e) {
+            System.err.println("stopping at " + repo + ": " + e.getMessage());
         }
         return selected;
     }
 
-    EvalCase label(GitHubGateway github, String owner, String repo, JsonNode summary) {
-        String login = summary.path("user").path("login").asText("");
-        String title = summary.path("title").asText("");
+    EvalCase label(String owner, String repo, PullRequestSummary summary) {
+        String login = summary.author();
+        String title = summary.title();
         if (login.endsWith("[bot]") || login.contains("dependabot") || login.contains("renovate")
                 || title.toLowerCase(Locale.ROOT).startsWith("bump ") || title.startsWith("chore(deps)")) {
             return null;
         }
-        int number = summary.path("number").asInt();
-        Map<String, Object> base = Map.of("owner", owner, "repo", repo, "pullNumber", number);
-        JsonNode pr = json(call(github, "get", base));
-        int changedFiles = pr.path("changed_files").asInt();
-        int changedLines = pr.path("additions").asInt() + pr.path("deletions").asInt();
-        if (changedFiles == 0 || changedFiles > maxFiles || changedLines < 5 || changedLines > maxLines) {
+        PrRef ref = new PrRef(owner, repo, summary.number());
+        PullRequestData pr = github.pullRequest(ref);
+        int changedLines = pr.additions() + pr.deletions();
+        if (pr.changedFiles() == 0 || pr.changedFiles() > maxFiles || changedLines < 5 || changedLines > maxLines) {
             return null;
         }
-        JsonNode files = PullRequestReader.array(json(call(github, "get_files", base)));
         boolean javaChanged = false;
-        for (JsonNode f : files) {
-            javaChanged |= f.path("filename").asText().endsWith(".java");
+        for (ChangedFile f : github.files(ref)) {
+            javaChanged |= f.filename().endsWith(".java");
         }
         if (!javaChanged) {
             return null;
         }
-        boolean merged = pr.path("merged").asBoolean(false);
-        String author = pr.path("user").path("login").asText(login);
+        String author = pr.author().isEmpty() ? login : pr.author();
 
         boolean changesRequested = false;
         boolean reviewed = false;
-        for (JsonNode review : PullRequestReader.array(json(call(github, "get_reviews", base)))) {
-            if (!review.path("user").path("login").asText().equals(author)) {
+        for (Review review : github.reviews(ref)) {
+            if (!review.author().equals(author)) {
                 reviewed = true;
-                changesRequested |= "CHANGES_REQUESTED".equals(review.path("state").asText());
+                changesRequested |= "CHANGES_REQUESTED".equals(review.state());
             }
         }
         Instant lastCommit = Instant.EPOCH;
-        for (JsonNode commit : PullRequestReader.array(json(call(github, "get_commits", base)))) {
-            String date = commit.path("author").path("date").asText("");
-            if (!date.isEmpty() && Instant.parse(date).isAfter(lastCommit)) {
-                lastCommit = Instant.parse(date);
+        for (CommitInfo commit : github.commits(ref)) {
+            if (commit.date() != null && commit.date().isAfter(lastCommit)) {
+                lastCommit = commit.date();
             }
         }
         List<EvalCase.MustFind> mustFind = new ArrayList<>();
-        for (JsonNode thread : json(call(github, "get_review_comments", base)).path("review_threads")) {
-            JsonNode first = thread.path("comments").path(0);
-            if (first.isMissingNode() || first.path("author").asText().equals(author)
-                    || isBot(first.path("author").asText())) {
+        for (ReviewComment first : github.reviewComments(ref)) {
+            if (first.inReplyToId() != 0 || first.author().equals(author) || isBot(first.author())) {
                 continue;
             }
             reviewed = true;
-            String created = first.path("created_at").asText("");
-            boolean addressed = thread.path("is_outdated").asBoolean(false)
-                    || thread.path("is_resolved").asBoolean(false)
-                    || (!created.isEmpty() && lastCommit.isAfter(Instant.parse(created)));
-            if (addressed || (!merged && changesRequested)) {
-                int line = first.path("line").isNumber() ? first.path("line").asInt() : first.path("original_line").asInt(0);
-                String body = first.path("body").asText("").strip().replaceAll("\\s+", " ");
-                mustFind.add(new EvalCase.MustFind(first.path("path").asText(), line,
+            boolean addressed = first.createdAt() != null && lastCommit.isAfter(first.createdAt());
+            if (addressed || (!pr.merged() && changesRequested)) {
+                int line = first.line() > 0 ? first.line() : first.originalLine();
+                String body = first.body().strip().replaceAll("\\s+", " ");
+                mustFind.add(new EvalCase.MustFind(first.path(), line,
                         body.length() > 300 ? body.substring(0, 300) + "…" : body));
             }
         }
 
         Verdict verdict;
         String rationale;
-        if (changesRequested || (!merged && reviewed)) {
+        if (changesRequested || (!pr.merged() && reviewed)) {
             verdict = Verdict.REQUEST_CHANGES;
             rationale = changesRequested ? "a reviewer requested changes" : "closed unmerged after review";
-        } else if (!merged) {
+        } else if (!pr.merged()) {
             return null; // closed without review: no signal
         } else if (!mustFind.isEmpty()) {
             verdict = Verdict.COMMENT;
@@ -176,8 +170,8 @@ public class EvalSetBuilder implements Callable<Integer> {
             verdict = Verdict.APPROVE;
             rationale = "merged without requested changes or addressed review comments";
         }
-        return new EvalCase(owner + "/" + repo + "#" + number, title, merged, changedFiles, changedLines, verdict,
-                List.copyOf(mustFind), rationale);
+        return new EvalCase(owner + "/" + repo + "#" + summary.number(), title, pr.merged(), pr.changedFiles(),
+                changedLines, verdict, List.copyOf(mustFind), rationale);
     }
 
     /** Review bots comment a lot; their remarks are not what a maintainer asked for. */
@@ -185,22 +179,5 @@ public class EvalSetBuilder implements Callable<Integer> {
         String l = login.toLowerCase(Locale.ROOT);
         return l.endsWith("[bot]") || l.contains("coderabbit") || l.contains("sourcery") || l.contains("copilot")
                 || l.contains("sonar") || l.contains("codecov") || l.contains("github-actions") || l.contains("dependabot");
-    }
-
-    private static String call(GitHubGateway github, String method, Map<String, Object> base) {
-        Map<String, Object> args = new LinkedHashMap<>(base);
-        args.put("method", method);
-        if (method.equals("get_files") || method.equals("get_commits")) {
-            args.put("perPage", 100);
-        }
-        return github.call("pull_request_read", args);
-    }
-
-    private static JsonNode json(String text) {
-        try {
-            return JSON.readTree(text);
-        } catch (Exception e) {
-            throw new IllegalStateException("Unexpected GitHub response: " + text.substring(0, Math.min(200, text.length())));
-        }
     }
 }

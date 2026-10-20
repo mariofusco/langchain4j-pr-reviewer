@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.langchain4j.prreviewer.model.ChangeKind;
 import dev.langchain4j.prreviewer.model.FileChange;
-import dev.langchain4j.prreviewer.support.FixtureGitHubGateway;
+import dev.langchain4j.prreviewer.support.FixtureGitHubReads;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -12,7 +12,7 @@ class DiffParserTest {
 
     @Test
     void parses_a_real_pull_request_diff() {
-        List<FileChange> files = DiffParser.parse(FixtureGitHubGateway.diff6610());
+        List<FileChange> files = DiffParser.parse(FixtureGitHubReads.diff6610());
 
         assertThat(files).hasSize(6);
         FileChange validation = files.get(0);

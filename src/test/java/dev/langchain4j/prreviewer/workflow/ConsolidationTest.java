@@ -9,7 +9,7 @@ import dev.langchain4j.prreviewer.model.Finding;
 import dev.langchain4j.prreviewer.model.FindingCategory;
 import dev.langchain4j.prreviewer.model.RawFinding;
 import dev.langchain4j.prreviewer.model.Severity;
-import dev.langchain4j.prreviewer.support.FixtureGitHubGateway;
+import dev.langchain4j.prreviewer.support.FixtureGitHubReads;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class ConsolidationTest {
 
-    static final List<FileChange> CHANGES = DiffParser.parse(FixtureGitHubGateway.diff6610());
+    static final List<FileChange> CHANGES = DiffParser.parse(FixtureGitHubReads.diff6610());
     static final String MAIN = "langchain4j/src/main/java/dev/langchain4j/service/DefaultAiServices.java";
 
     @Test

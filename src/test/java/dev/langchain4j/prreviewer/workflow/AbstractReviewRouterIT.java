@@ -16,7 +16,7 @@ import dev.langchain4j.prreviewer.model.ReviewMode;
 import dev.langchain4j.prreviewer.model.ReviewOptions;
 import dev.langchain4j.prreviewer.model.Risk;
 import dev.langchain4j.prreviewer.model.Size;
-import dev.langchain4j.prreviewer.support.FixtureGitHubGateway;
+import dev.langchain4j.prreviewer.support.FixtureGitHubReads;
 import dev.langchain4j.prreviewer.support.TestData;
 import dev.langchain4j.prreviewer.support.TestScenario;
 import jakarta.inject.Inject;
@@ -85,7 +85,7 @@ abstract class AbstractReviewRouterIT {
     private ReviewOutcome run(String diff, PrSummary summary) {
         Map<String, Object> responses = TestData.defaultResponses();
         responses.put("prTriage", summary);
-        scenario.reset().responses(responses).github(new FixtureGitHubGateway("pr6610", diff));
+        scenario.reset().responses(responses).github(new FixtureGitHubReads("pr6610", diff));
         ReviewOptions defaults = ReviewOptions.defaults();
         ReviewOptions options = new ReviewOptions(defaults.deep(), defaults.maxFiles(), defaults.maxDiffTokens(),
                 defaults.forcedTier(), defaults.maxDebates(), provider().defaultRouterThreshold(), defaults.maxCostUsd(),

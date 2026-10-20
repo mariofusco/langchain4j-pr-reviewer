@@ -2,19 +2,30 @@ package dev.langchain4j.prreviewer.github;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.langchain4j.prreviewer.github.GitHubReads.ChangedFile;
+import dev.langchain4j.prreviewer.github.GitHubReads.CheckRun;
+import dev.langchain4j.prreviewer.github.GitHubReads.CommitInfo;
+import dev.langchain4j.prreviewer.github.GitHubReads.PullRequestData;
+import dev.langchain4j.prreviewer.github.GitHubReads.Review;
+import dev.langchain4j.prreviewer.github.GitHubReads.ReviewComment;
+import dev.langchain4j.prreviewer.model.ChangeKind;
 import dev.langchain4j.prreviewer.model.PrRef;
 import dev.langchain4j.prreviewer.model.PullRequest;
-import dev.langchain4j.prreviewer.support.FixtureGitHubGateway;
-import java.util.Map;
+import dev.langchain4j.prreviewer.support.FixtureGitHubReads;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class PullRequestReaderTest {
 
-    @Test
-    void reads_a_pull_request_from_recorded_mcp_responses() {
-        FixtureGitHubGateway github = new FixtureGitHubGateway("pr6610");
+    static final PrRef PR_6610 = new PrRef("langchain4j", "langchain4j", 6610);
 
-        PullRequest pr = new PullRequestReader(github).read(new PrRef("langchain4j", "langchain4j", 6610));
+    @Test
+    void reads_a_pull_request_from_recorded_responses() {
+        FixtureGitHubReads github = new FixtureGitHubReads("pr6610");
+
+        PullRequest pr = new PullRequestReader(github).read(PR_6610);
 
         assertThat(pr.title()).isEqualTo("Decide in one place which AI Service methods call the model");
         assertThat(pr.author()).isEqualTo("dliubarskyi");
@@ -26,105 +37,99 @@ class PullRequestReaderTest {
         assertThat(pr.ciStatus().total()).isEqualTo(8);
         assertThat(pr.ciStatus().failed()).isPositive();
         assertThat(pr.linkedIssueBody()).isNull(); // "Follow-up to #6420" does not close an issue
-        assertThat(github.calls()).contains("pull_request_read:get", "pull_request_read:get_diff",
-                "pull_request_read:get_commits", "pull_request_read:get_check_runs", "pull_request_read:get_reviews",
-                "pull_request_read:get_review_comments");
+        assertThat(github.calls()).contains("pullRequest", "unifiedDiff", "commits", "checkRuns", "reviews",
+                "reviewComments");
     }
 
     @Test
-    void reads_reviews_and_review_threads() {
-        GitHubGateway github = (tool, args) -> {
-            String method = String.valueOf(args.get("method"));
-            return switch (method) {
-                case "get" -> FixtureGitHubGateway.read("pr6610/get.json");
-                case "get_diff" -> FixtureGitHubGateway.diff6610();
-                case "get_check_runs" -> FixtureGitHubGateway.read("pr6610/get_check_runs.json");
-                default -> FixtureGitHubGateway.read("pr6584/" + method + ".json");
-            };
-        };
-
-        PullRequest pr = new PullRequestReader(github).read(new PrRef("langchain4j", "langchain4j", 6584));
+    void reads_reviews_and_review_comments() {
+        PullRequest pr = new PullRequestReader(new FixtureGitHubReads("pr6584"))
+                .read(new PrRef("langchain4j", "langchain4j", 6584));
 
         assertThat(pr.existingReviewComments()).anyMatch(c -> c.startsWith("jmartisk (CHANGES_REQUESTED)"));
-        assertThat(pr.existingReviewComments())
-                .anyMatch(c -> c.startsWith("jmartisk on langchain4j-mcp/src/main/java/dev/langchain4j/mcp/client/DefaultMcpClient.java:814 (resolved): You probably should call"));
+        assertThat(pr.existingReviewComments()).anyMatch(c -> c.startsWith(
+                "jmartisk on langchain4j-mcp/src/main/java/dev/langchain4j/mcp/client/DefaultMcpClient.java:814: You probably should call"));
+    }
+
+    @Test
+    void replies_follow_the_root_comment_of_their_thread() {
+        ReviewComment first = comment(1, 0, "first");
+        ReviewComment second = comment(2, 0, "second");
+        ReviewComment replyToFirst = comment(3, 1, "reply to first");
+        ReviewComment replyToSecond = comment(4, 2, "reply to second");
+        ReviewComment orphan = comment(5, 99, "reply to a deleted comment");
+
+        List<ReviewComment> threaded = PullRequestReader.threaded(List.of(first, second, replyToFirst, replyToSecond, orphan));
+
+        assertThat(threaded).extracting(ReviewComment::body)
+                .containsExactly("first", "reply to first", "second", "reply to second", "reply to a deleted comment");
     }
 
     @Test
     void fetches_the_linked_issue_and_survives_missing_optional_parts() {
-        String body = FixtureGitHubGateway.read("pr6610/get.json").replace("No issue. Follow-up to #6420.", "Fixes #6600");
-        GitHubGateway github = (tool, args) -> {
-            if (tool.equals("issue_read")) {
-                assertThat(args).containsEntry("issue_number", 6600);
-                return FixtureGitHubGateway.read("pr6610/issue_6600.json");
+        FixtureGitHubReads github = new FixtureGitHubReads("pr6610") {
+            @Override
+            public PullRequestData pullRequest(PrRef ref) {
+                PullRequestData pr = super.pullRequest(ref);
+                return new PullRequestData(pr.number(), pr.title(),
+                        pr.body().replace("No issue. Follow-up to #6420.", "Fixes #6600"), pr.author(), pr.baseRef(),
+                        pr.headRef(), pr.headSha(), pr.htmlUrl(), pr.labels(), pr.merged(), pr.additions(),
+                        pr.deletions(), pr.changedFiles());
             }
-            return switch (String.valueOf(args.get("method"))) {
-                case "get" -> body;
-                case "get_diff" -> FixtureGitHubGateway.diff6610();
-                case "get_commits" -> "[]";
-                default -> throw new GitHubAccessException("rate limited");
-            };
+
+            @Override
+            public List<CommitInfo> commits(PrRef ref) {
+                return List.of();
+            }
+
+            @Override
+            public List<CheckRun> checkRuns(String owner, String repo, String sha) {
+                throw new GitHubAccessException("rate limited");
+            }
+
+            @Override
+            public List<Review> reviews(PrRef ref) {
+                throw new GitHubAccessException("rate limited");
+            }
         };
 
-        PullRequest pr = new PullRequestReader(github).read(new PrRef("langchain4j", "langchain4j", 6610));
+        PullRequest pr = new PullRequestReader(github).read(PR_6610);
 
         assertThat(pr.linkedIssueBody()).startsWith("#6600 fix(guardrails)");
+        assertThat(pr.commits()).isEmpty();
         assertThat(pr.ciStatus().total()).isZero();
         assertThat(pr.existingReviewComments()).isEmpty();
+        assertThat(github.calls()).contains("issue:6600");
     }
 
     @Test
-    void accepts_results_as_text_content_or_as_structured_content() {
-        String plainIssue = FixtureGitHubGateway.read("plain/issue_6600.json");
-        String structuredIssue = FixtureGitHubGateway.read("pr6610/issue_6600.json");
-        String body = FixtureGitHubGateway.read("pr6610/get.json").replace("No issue. Follow-up to #6420.", "Closes #6600");
-        for (String issue : java.util.List.of(plainIssue, structuredIssue)) {
-            for (String diff : java.util.List.of(FixtureGitHubGateway.diff6610(), FixtureGitHubGateway.read("pr6610/get_diff.json"))) {
-                GitHubGateway github = (tool, args) -> tool.equals("issue_read") ? issue
-                        : switch (String.valueOf(args.get("method"))) {
-                            case "get" -> body;
-                            case "get_diff" -> diff;
-                            case "get_commits" -> "{\"commits\":" + FixtureGitHubGateway.read("pr6610/get_commits.json") + "}";
-                            default -> "[]";
-                        };
-
-                PullRequest pr = new PullRequestReader(github).read(new PrRef("langchain4j", "langchain4j", 6610));
-
-                assertThat(DiffParser.parse(pr.rawDiff())).hasSize(6);
-                assertThat(pr.linkedIssueBody()).startsWith("#6600 fix(guardrails)");
-                assertThat(pr.commits()).isNotEmpty();
-            }
-        }
-    }
-
-    @Test
-    void a_pure_rename_without_patch_is_not_a_binary_change() throws Exception {
-        var file = new com.fasterxml.jackson.databind.ObjectMapper().readTree(
-                "{\"filename\":\"src/B.java\",\"previous_filename\":\"src/A.java\",\"status\":\"renamed\",\"changes\":0}");
-
-        String patch = PullRequestReader.filePatch(file);
+    void a_pure_rename_without_patch_is_not_a_binary_change() {
+        String patch = PullRequestReader.filePatch(new ChangedFile("src/B.java", "src/A.java", "renamed", null, 0));
 
         assertThat(patch).contains("rename from src/A.java").contains("rename to src/B.java").doesNotContain("Binary files");
         assertThat(DiffParser.parse(patch)).singleElement().satisfies(f -> {
-            assertThat(f.kind()).isEqualTo(dev.langchain4j.prreviewer.model.ChangeKind.RENAMED);
+            assertThat(f.kind()).isEqualTo(ChangeKind.RENAMED);
             assertThat(f.binary()).isFalse();
         });
     }
 
     @Test
     void rebuilds_the_diff_from_the_files_when_github_refuses_it() {
-        GitHubGateway github = (tool, args) -> switch (String.valueOf(args.get("method"))) {
-            case "get" -> FixtureGitHubGateway.read("pr6610/get.json");
-            case "get_diff" -> throw new GitHubAccessException("diff too large");
-            case "get_files" -> Map.of("page", 1).equals(Map.of("page", args.get("page")))
-                    ? FixtureGitHubGateway.read("pr6610/get_files.json")
-                    : "[]";
-            default -> "[]";
+        FixtureGitHubReads github = new FixtureGitHubReads("pr6610") {
+            @Override
+            public Optional<String> unifiedDiff(PrRef ref) {
+                return Optional.empty();
+            }
         };
 
-        PullRequest pr = new PullRequestReader(github).read(new PrRef("langchain4j", "langchain4j", 6610));
+        PullRequest pr = new PullRequestReader(github).read(PR_6610);
 
         assertThat(DiffParser.parse(pr.rawDiff())).hasSize(6);
         assertThat(DiffParser.parse(pr.rawDiff()).stream().mapToInt(f -> f.additions()).sum()).isEqualTo(124);
+        assertThat(github.calls()).contains("files");
+    }
+
+    private static ReviewComment comment(long id, long inReplyTo, String body) {
+        return new ReviewComment(id, inReplyTo, "reviewer", "src/A.java", 10, 10, body, Instant.EPOCH);
     }
 }
