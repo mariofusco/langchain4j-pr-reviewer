@@ -67,6 +67,13 @@ public class TestChatModels {
 
     @Produces
     @ApplicationScoped
+    @ModelName("openai-economy-tools")
+    ChatModel openAiEconomyTools() {
+        return model("openai", "openai-economy-tools");
+    }
+
+    @Produces
+    @ApplicationScoped
     @ModelName("openai-standard-tools")
     ChatModel openAiStandardTools() {
         return model("openai", "openai-standard-tools");

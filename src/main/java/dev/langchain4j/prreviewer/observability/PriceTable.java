@@ -8,7 +8,7 @@ import java.util.Map;
  */
 public final class PriceTable {
 
-    /** Prices of one model; Haiku 5.5 has a higher rate for prompts above 100K tokens. */
+    /** Prices of one model; some models have a higher rate for prompts above a threshold (e.g. 100K for Haiku 5.5, 272K for gpt-6). */
     public record Price(double input, double output, double cacheRead, double cacheWrite,
                         double longInput, double longOutput, int longPromptThreshold) {}
 
@@ -23,6 +23,8 @@ public final class PriceTable {
             Map.entry("gpt-5.4-nano", new Price(0.20, 1.25, 0.02, 0.0, 0.20, 1.25, Integer.MAX_VALUE)),
             Map.entry("gpt-5.4-mini", new Price(0.75, 4.50, 0.075, 0.0, 0.75, 4.50, Integer.MAX_VALUE)),
             Map.entry("gpt-5.6-luna", new Price(0.20, 1.20, 0.02, 0.0, 0.20, 1.20, Integer.MAX_VALUE)),
+            Map.entry("gpt-6-luna", new Price(0.10, 0.50, 0.01, 0.125, 0.20, 0.75, 272_000)),
+            Map.entry("gpt-6.1-sol", new Price(2.00, 10.00, 0.10, 2.50, 4.00, 15.00, 272_000)),
             Map.entry("gpt-4.1-nano", new Price(0.10, 0.40, 0.025, 0.0, 0.10, 0.40, Integer.MAX_VALUE)),
             Map.entry("gpt-4.1-mini", new Price(0.40, 1.60, 0.10, 0.0, 0.40, 1.60, Integer.MAX_VALUE)));
 

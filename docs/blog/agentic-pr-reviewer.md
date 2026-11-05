@@ -339,12 +339,12 @@ The tiers are named models, a feature of Quarkus LangChain4j: each `quarkus.lang
 ```properties
 quarkus.langchain4j.openai-standard.chat-model.provider=openai
 quarkus.langchain4j.openai.openai-standard.api-key=${OPENAI_API_KEY:missing}
-quarkus.langchain4j.openai.openai-standard.chat-model.model-name=gpt-5.6-luna
+quarkus.langchain4j.openai.openai-standard.chat-model.model-name=gpt-6-luna
 quarkus.langchain4j.openai.openai-standard.chat-model.reasoning-effort=medium
 
 quarkus.langchain4j.openai-premium.chat-model.provider=openai
 quarkus.langchain4j.openai.openai-premium.api-key=${OPENAI_API_KEY:missing}
-quarkus.langchain4j.openai.openai-premium.chat-model.model-name=gpt-5.1
+quarkus.langchain4j.openai.openai-premium.chat-model.model-name=gpt-6.1-sol
 quarkus.langchain4j.openai.openai-premium.chat-model.reasoning-effort=high
 ```
 
