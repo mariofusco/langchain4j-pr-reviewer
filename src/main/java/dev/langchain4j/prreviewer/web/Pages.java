@@ -20,4 +20,6 @@ final class Pages {
     static native TemplateInstance report(Views.ReportPage page);
 
     static native TemplateInstance progressRow(WebRun.ProgressRow row);
+
+    static native TemplateInstance gpu(Views.GpuView gpu);
 }

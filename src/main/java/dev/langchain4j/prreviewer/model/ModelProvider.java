@@ -5,7 +5,9 @@ import java.util.Locale;
 /** The chat model provider; each tier maps to a named model configuration in {@code application.properties}. */
 public enum ModelProvider {
     ANTHROPIC("ANTHROPIC_API_KEY"),
-    OPENAI("OPENAI_API_KEY");
+    OPENAI("OPENAI_API_KEY"),
+    /** Local inference on this machine's GPU through jitllm and TornadoVM: no key, no network, no cost. */
+    JITLLM(null);
 
     private final String apiKeyVariable;
 
@@ -13,7 +15,7 @@ public enum ModelProvider {
         this.apiKeyVariable = apiKeyVariable;
     }
 
-    /** The environment variable holding the provider's API key. */
+    /** The environment variable holding the provider's API key; null for a local provider, which needs none. */
     public String apiKeyVariable() {
         return apiKeyVariable;
     }

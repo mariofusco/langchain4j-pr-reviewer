@@ -47,4 +47,49 @@ public interface ReviewerConfig {
 
     @WithDefault("review-output")
     Path outputDir();
+
+    /** The model of the local provider {@code jitllm} ({@code reviewer.jitllm.*}). */
+    Jitllm jitllm();
+
+    interface Jitllm {
+        /** The GGUF file of every tier without its own; empty: the provider is not offered. */
+        Optional<Path> modelPath();
+
+        /** The model of the small tier (triage, checklists, critic); empty: {@link #modelPath()}. */
+        Optional<Path> economyModelPath();
+
+        /** The model of the medium tier (reviewers, scoring, writing); empty: {@link #modelPath()}. */
+        Optional<Path> standardModelPath();
+
+        /** The model of the large tier (escalations only); empty: {@link #modelPath()}. */
+        Optional<Path> premiumModelPath();
+
+        /** The context window in tokens, which sizes the key/value cache on the GPU. */
+        @WithDefault("32768")
+        int contextLength();
+
+        /** The output budget of one call, thinking included. */
+        @WithDefault("8192")
+        int maxTokens();
+
+        @WithDefault("0.6")
+        double temperature();
+
+        @WithDefault("0.95")
+        double topP();
+
+        /** Whether reasoning models think before answering. */
+        @WithDefault("true")
+        boolean think();
+
+        /**
+         * Whether the premium tier's model thinks; empty: {@link #think()}. A large model on a laptop GPU decodes a
+         * few tokens a second, and thousands of thinking tokens make one escalation take a quarter of an hour.
+         */
+        Optional<Boolean> premiumThink();
+
+        /** On the GPU through TornadoVM; false runs jitllm's CPU path. */
+        @WithDefault("true")
+        boolean gpu();
+    }
 }

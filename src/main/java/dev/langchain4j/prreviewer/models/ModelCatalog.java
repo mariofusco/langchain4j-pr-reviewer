@@ -38,8 +38,14 @@ public class ModelCatalog {
         return tools.isResolvable() ? tools.get() : chatModel(provider, tier);
     }
 
-    /** Whether the provider's API key is set; the models of a provider without a key fail on every call. */
+    /**
+     * Whether the provider's API key is set, or for the local provider whether its model file is configured; the models
+     * of a provider without either fail on every call.
+     */
     public static boolean available(ModelProvider provider) {
+        if (provider.apiKeyVariable() == null) {
+            return JitllmModels.configured();
+        }
         return ConfigProvider.getConfig().getOptionalValue(provider.apiKeyVariable(), String.class)
                 .filter(key -> !key.isBlank())
                 .isPresent();

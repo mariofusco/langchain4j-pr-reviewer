@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# The PR reviewer with every agent on this machine's GPU: jitllm + TornadoVM, no API key, no network but GitHub.
+#
+#   JITLLM_MODEL=~/models/Qwen3-4B-Q8_0.gguf JITLLM_PREMIUM_MODEL=~/models/Qwen3.8-27B-Q4_0.gguf \
+#       bin/pr-reviewer-local review owner/repo#123
+#   JITLLM_MODEL=... bin/pr-reviewer-local serve
+#
+# JITLLM_MODEL serves every tier; JITLLM_ECONOMY_MODEL, JITLLM_STANDARD_MODEL and JITLLM_PREMIUM_MODEL give a tier its own.
+#
+# Needs: a TornadoVM SDK of the jdk22plus line in TORNADOVM_HOME (sdk install tornadovm 8.2.0-jdk22plus-metal on
+# Apple silicon, 8.2.0-jdk22plus-cuda on NVIDIA),
+# a JDK 22+ in JAVA_HOME (25 recommended), `mvn install -DskipTests` done, and for the router the decision server
+# (demo/decision-server.sh) on SYSTEM_ONE_BASE_URL (default http://127.0.0.1:8090).
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+jar="${PR_REVIEWER_JAR:-$here/target/langchain4j-pr-reviewer-1.0.0-SNAPSHOT-runner.jar}"
+java="${JAVA_HOME:+$JAVA_HOME/bin/}java"
+
+: "${TORNADOVM_HOME:?set TORNADOVM_HOME to a TornadoVM SDK (jdk22plus line), e.g. ~/.sdkman/candidates/tornadovm/current}"
+: "${JITLLM_MODEL:?set JITLLM_MODEL to a GGUF model file}"
+[[ -f "$jar" ]] || { echo "no $jar: run mvn install -DskipTests first" >&2; exit 1; }
+[[ -f "$JITLLM_MODEL" ]] || { echo "no model file $JITLLM_MODEL" >&2; exit 1; }
+export JITLLM_MODEL
+
+# a fresh SDK ships only the template; the `tornado` command expands it on its first run, do the same here
+argfile="$TORNADOVM_HOME/tornado-argfile"
+if [[ ! -f "$argfile" && -f "$argfile.template" ]]; then
+    sed "s#\${TORNADOVM_HOME}#$TORNADOVM_HOME#g" "$argfile.template" > "$argfile"
+fi
+
+# jitllm picks its native libraries (MLX prefill on an M4 or newer, cuBLAS on CUDA) and falls back to its own kernels
+# where they don't apply; JITLLM_NATIVE_LIBRARIES=false forces its own kernels everywhere.
+native_libraries="${JITLLM_NATIVE_LIBRARIES:-}"
+
+profile=local
+[[ "${1:-}" == serve ]] || profile=local,cli
+
+args=(
+    "@$argfile"
+    --add-modules jdk.incubator.vector
+    --enable-native-access=ALL-UNNAMED
+    "-Xmx${JITLLM_HEAP:-8g}"
+    # on CUDA jitllm stages a model's tensors in direct buffers, which the JVM caps at -Xmx by default: a 15 GiB
+    # model (Qwen3.8-27B Q4_0) failed to load under the 8g heap with "Cannot reserve ... bytes of direct buffer memory"
+    "-XX:MaxDirectMemorySize=${JITLLM_DIRECT_MEMORY:-32g}"
+    -Duse.tornadovm=true
+    -Dtornado.tvm.maxbytecodesize=65536
+    "-Dtornado.device.memory=${JITLLM_GPU_MEMORY:-26GB}"
+    -Dtornado.mlx.async=true
+    "-Dquarkus.profile=$profile"
+)
+[[ -n "$native_libraries" ]] && args+=("-Djitllm.nativeLibraries=$native_libraries")
+
+exec "$java" "${args[@]}" ${JAVA_OPTS:-} -jar "$jar" "$@"

@@ -68,7 +68,7 @@ public class ReviewCommand implements Callable<Integer> {
     }
 
     static class Models {
-        @Option(names = "--provider", description = "ANTHROPIC or OPENAI (default: ${DEFAULT-VALUE})")
+        @Option(names = "--provider", description = "ANTHROPIC, OPENAI or JITLLM (default: ${DEFAULT-VALUE})")
         ModelProvider provider = ModelProvider.ANTHROPIC;
 
         @Option(names = "--model-tier", description = "Force one tier for every agent: ECONOMY, STANDARD or PREMIUM")

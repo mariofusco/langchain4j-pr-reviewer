@@ -47,4 +47,22 @@ tr.fail td { color: var(--bad); }
 .report { line-height: 1.6; } .report table { width: auto; margin: .5rem 0; }
 .report code { background: var(--bg); padding: 0 .25rem; border-radius: 4px; }
 .report-head { font-size: 1.1rem; }
+/* Local GPU panel (provider jitllm) */
+.gpu-card { border-color: var(--accent); }
+.gpu-head { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; margin-bottom: .5rem; }
+.gpu-cost { margin-left: auto; font-weight: 700; color: var(--ok); font-variant-numeric: tabular-nums; }
+.gpu-dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--ok); align-self: center; box-shadow: 0 0 0 0 var(--ok); animation: gpu-pulse 1.6s infinite; }
+.gpu-dot.idle { background: var(--muted); animation: none; }
+@keyframes gpu-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); } 100% { box-shadow: 0 0 0 .5rem transparent; } }
+@media (prefers-reduced-motion: reduce) { .gpu-dot { animation: none; } }
+.gpu-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: .25rem 1rem; margin: .5rem 0 .75rem; }
+.gpu-facts dt { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.gpu-facts dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.gpu-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: .5rem 1rem; margin: .5rem 0; }
+.gpu-stats div { display: flex; flex-direction: column; }
+.gpu-big { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.gpu-spark { width: 100%; height: 56px; display: block; margin: .25rem 0 .5rem; }
+.gpu-spark .line { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.gpu-spark .area { fill: color-mix(in srgb, var(--accent) 15%, transparent); stroke: none; }
+.gpu-calls { font-size: .9rem; }
 @media (max-width: 40rem) { main { padding: .5rem; } .card { padding: .75rem; } .row { flex-direction: column; align-items: stretch; } .when { display: none; } }
