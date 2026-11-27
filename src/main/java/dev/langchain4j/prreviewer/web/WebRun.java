@@ -3,6 +3,7 @@ package dev.langchain4j.prreviewer.web;
 import dev.langchain4j.prreviewer.app.ReviewOutcome;
 import dev.langchain4j.prreviewer.app.ReviewRequest;
 import dev.langchain4j.prreviewer.app.RunEvent;
+import dev.langchain4j.prreviewer.observability.LocalInference;
 import io.smallrye.mutiny.subscription.MultiEmitter;
 import jakarta.ws.rs.sse.OutboundSseEvent;
 import jakarta.ws.rs.sse.Sse;
@@ -46,6 +47,7 @@ public class WebRun {
     private final ReviewRequest request;
     private final Instant created = Instant.now();
     private final List<ProgressRow> rows = new ArrayList<>();
+    private final List<LocalInference.Call> gpuCalls = new ArrayList<>();
     private final List<Subscriber> subscribers = new ArrayList<>();
     private Status status = Status.QUEUED;
     private Interaction interaction;
@@ -83,6 +85,11 @@ public class WebRun {
         return List.copyOf(rows);
     }
 
+    /** The local model calls of this review, for the Local GPU panel. */
+    public synchronized List<LocalInference.Call> gpuCalls() {
+        return List.copyOf(gpuCalls);
+    }
+
     public synchronized Interaction interaction() {
         return interaction;
     }
@@ -110,6 +117,16 @@ public class WebRun {
 
     void progress(RunEvent event) {
         if (event.kind() == RunEvent.Kind.AGENT_STARTED) {
+            return;
+        }
+        if (event.kind() == RunEvent.Kind.MODEL_CALL) {
+            LocalInference.Call call = LocalInference.get().latest();
+            if (call != null) {
+                synchronized (this) {
+                    gpuCalls.add(call);
+                }
+            }
+            emit("gpu", "");
             return;
         }
         ProgressRow row = ProgressRow.of(event);

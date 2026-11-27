@@ -15,6 +15,7 @@ import dev.langchain4j.prreviewer.model.ReviewMode;
 import dev.langchain4j.prreviewer.model.ReviewOptions;
 import dev.langchain4j.prreviewer.models.DecisionModels;
 import dev.langchain4j.prreviewer.models.ModelCatalog;
+import dev.langchain4j.prreviewer.observability.LocalInference;
 import io.quarkus.qute.TemplateInstance;
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
@@ -109,6 +110,13 @@ public class ReviewResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance status(@RestPath String id) {
         return Pages.status(find(id));
+    }
+
+    @GET
+    @Path("reviews/{id}/gpu")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance gpu(@RestPath String id) {
+        return Pages.gpu(Views.GpuView.of(LocalInference.get().engines(), find(id).gpuCalls()));
     }
 
     @GET

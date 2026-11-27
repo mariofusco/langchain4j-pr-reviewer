@@ -23,6 +23,12 @@ final class ProgressPrinter implements Consumer<RunEvent> {
             case AGENT_STARTED -> null;
             case AGENT_FINISHED -> "@|green ok|@  ";
             case AGENT_FAILED -> "@|red fail|@";
+            case MODEL_CALL -> {
+                err.println(ansi.string(String.format(Locale.ROOT, "       @|faint ↳ gpu %-30s %7.1fs  %s|@",
+                        event.agent(), event.millis() / 1000.0, event.detail())));
+                err.flush();
+                yield null;
+            }
         };
         if (status == null) {
             return;

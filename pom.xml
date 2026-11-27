@@ -21,6 +21,9 @@
         <quarkus-langchain4j.version>2.0.0.CR1</quarkus-langchain4j.version>
         <quarkus-github-api.version>1.330.0</quarkus-github-api.version>
 
+        <!-- local inference on the GPU (Metal, CUDA or OpenCL) through jitllm and TornadoVM: the provider "jitllm" -->
+        <jitllm.version>3.1.0-jdk22plus</jitllm.version>
+        <langchain4j-jitllm.version>1.24.1-beta34</langchain4j-jitllm.version>
         <htmx.version>2.0.11</htmx.version>
         <htmx-ext-sse.version>2.2.4</htmx-ext-sse.version>
         <commonmark.version>0.33.0</commonmark.version>
@@ -66,6 +69,24 @@
         <dependency>
             <groupId>io.quarkiverse.langchain4j</groupId>
             <artifactId>quarkus-langchain4j-typesafe</artifactId>
+        </dependency>
+        <!-- jitllm: the adapter matches the BOM's langchain4j 1.24; it still declares jitllm 1.0.2, so jitllm itself is
+             pinned here to the 3.1 line (TornadoVM 8.2) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-jitllm</artifactId>
+            <version>${langchain4j-jitllm.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.github.beehive-lab</groupId>
+                    <artifactId>jitllm</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.github.beehive-lab</groupId>
+            <artifactId>jitllm</artifactId>
+            <version>${jitllm.version}</version>
         </dependency>
         <dependency>
             <groupId>io.quarkiverse.githubapi</groupId>

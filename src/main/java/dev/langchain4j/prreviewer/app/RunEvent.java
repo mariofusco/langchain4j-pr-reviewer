@@ -15,6 +15,8 @@ public record RunEvent(Kind kind, String agent, String model, long millis, doubl
     public enum Kind {
         AGENT_STARTED,
         AGENT_FINISHED,
-        AGENT_FAILED
+        AGENT_FAILED,
+        /** A call of a local model: {@code millis} is its run time, {@code detail} its tokens and speed. */
+        MODEL_CALL
     }
 }

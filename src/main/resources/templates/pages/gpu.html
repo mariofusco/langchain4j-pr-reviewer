@@ -1,0 +1,42 @@
+<div class="gpu">
+  <div class="gpu-head">
+    <span class="gpu-dot{#if gpu.calls == 0} idle{/if}"></span>
+    <strong>Local GPU</strong>
+    <span class="muted">all-Java inference · jitllm + TornadoVM · nothing leaves this machine but GitHub reads</span>
+    <span class="gpu-cost">$0.00</span>
+  </div>
+  {#if gpu.device}
+  <dl class="gpu-facts">
+    <div><dt>Device</dt><dd>{#if gpu.device.execution('device')}{gpu.device.execution('backend')} / {gpu.device.execution('device')}{#else}{#if gpu.device.gpu}GPU{#else}CPU{/if}{/if}</dd></div>
+    <div><dt>Runtime</dt><dd>{gpu.device.execution('runtime') ?: '—'}{#if gpu.device.execution('mode')} · {gpu.device.execution('mode')}{/if}</dd></div>
+    <div><dt>Prefill</dt><dd>{gpu.device.execution('prefillKernels') ?: '—'}{#if gpu.device.execution('prefillBatchSize')} · {gpu.device.execution('prefillBatchSize')}-token chunks{/if}</dd></div>
+    <div><dt>Native libraries</dt><dd>{gpu.device.execution('nativeLibraries') ?: '—'}</dd></div>
+    <div><dt>KV cache</dt><dd>{gpu.device.execution('kvCache') ?: '—'} · ctx {gpu.device.contextLength}</dd></div>
+    {#for e in gpu.engines}
+    <div><dt>Model {e_count}</dt><dd>{e.file} · {e.quantization} · {e.size} GiB · loaded in {e.loadMillis} ms</dd></div>
+    {/for}
+  </dl>
+  {#else}
+  <p class="muted">The models load on the first agent call that needs them.</p>
+  {/if}
+  <div class="gpu-stats">
+    <div><span class="gpu-big">{gpu.averageTokensPerSecond}</span><span class="muted">tok/s average</span></div>
+    <div><span class="gpu-big">{gpu.peakTokensPerSecond}</span><span class="muted">tok/s peak</span></div>
+    <div><span class="gpu-big">{gpu.calls}</span><span class="muted">model calls</span></div>
+    <div><span class="gpu-big">{gpu.inputTokens}</span><span class="muted">prompt tokens</span></div>
+    <div><span class="gpu-big">{gpu.outputTokens}</span><span class="muted">generated tokens</span></div>
+    <div><span class="gpu-big">{gpu.gpuSeconds}s</span><span class="muted">on the GPU ({gpu.queuedSeconds}s queued)</span></div>
+  </div>
+  {#if gpu.sparkline}
+  <svg class="gpu-spark" viewBox="0 0 320 56" preserveAspectRatio="none" role="img" aria-label="generation speed of each call">
+    {#if gpu.sparkArea}<polygon points="{gpu.sparkArea}" class="area"/>{/if}
+    <polyline points="{gpu.sparkline}" class="line"/>
+  </svg>
+  {/if}
+  {#if gpu.recent}
+  <table class="gpu-calls">
+    <thead><tr><th>Latest calls</th><th>Model</th><th class="num">Prompt</th><th class="num">Generated</th><th class="num">Time</th><th class="num">tok/s</th></tr></thead>
+    <tbody>{#for c in gpu.recent}<tr><td>{c.agent}</td><td class="muted">{c.model}</td><td class="num">{c.inputTokens}</td><td class="num">{c.outputTokens}</td><td class="num">{c.seconds}s</td><td class="num">{c.tokensPerSecond}</td></tr>{/for}</tbody>
+  </table>
+  {/if}
+</div>

@@ -202,3 +202,66 @@ Labels come from what happened to each pull request: `REQUEST_CHANGES` when chan
 ## Safety
 
 GitHub access is read-only by construction: the `GitHubReads` interface has no write method, AI agents get exactly five read tools (`get_file_contents`, `search_code`, `get_commit`, `list_commits`, `issue_read`), each agent invocation has a budget of tool calls, and the token should be a read-only fine-grained one. A GitHub refusal for its rate limits is retried once by the error handler. Every prompt states that the pull request content is untrusted data, and wraps it in delimiters; the content itself is always in the user message, never in a system prompt. Findings whose location is not in the diff are discarded, which also neutralizes anything smuggled in through the pull request text. The web interface's own protections are described [above](#web-interface).
+
+## Running locally on the GPU with jitllm
+
+The provider `jitllm` runs every agent in the reviewer's own JVM, on this machine's GPU, through
+[jitllm](https://github.com/beehive-lab/jitllm) 3.1.0 and [TornadoVM](https://github.com/beehive-lab/TornadoVM)
+8.2: Metal on Apple silicon, CUDA or OpenCL elsewhere. It needs no API key and sends nothing anywhere except the
+read-only GitHub calls. A review costs $0.00. The reviewer router uses jitllm's System One endpoint as its local
+decision model, served by `jitllm serve`, which can run as a GraalVM native image.
+
+Requirements: JDK 25, a TornadoVM SDK of the jdk22plus line, and GGUF models. With SDKMAN:
+`sdk install java 25.0.2-open`, `sdk install tornadovm 8.2.0-jdk22plus-metal` (or `-cuda` / `-opencl`), and
+`sdk install java 25.0.1-graal` for the native image.
+
+```sh
+export TORNADOVM_HOME=~/.sdkman/candidates/tornadovm/current JAVA_HOME=~/.sdkman/candidates/java/25.0.2-open
+mvn install -DskipTests
+
+# models: a small one for the routine tiers, optionally a large one for the escalations, and the router's decider
+curl -L -o ~/models/Qwen3-4B-Q8_0.gguf    https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q8_0.gguf
+curl -L -o ~/models/Qwen3.8-27B-Q4_0.gguf https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-Q4_0.gguf
+curl -L -o ~/models/Qwen3-1.7B-Q8_0.gguf  https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q8_0.gguf
+export JITLLM_MODEL=~/models/Qwen3-4B-Q8_0.gguf             # every tier without a model of its own
+export JITLLM_PREMIUM_MODEL=~/models/Qwen3.8-27B-Q4_0.gguf  # optional: escalations only
+export DECISION_MODEL=~/models/Qwen3-1.7B-Q8_0.gguf
+
+# the decision server: build the native image once, then serve on 127.0.0.1:8090
+GRAALVM_HOME=~/.sdkman/candidates/java/25.0.1-graal demo/decision-server.sh build
+demo/decision-server.sh &                                    # or --jvm to serve it on the JVM
+
+bin/pr-reviewer-local review langchain4j/langchain4j#7163   # one review from the command line
+demo/run-demo.sh                                             # or the web interface, with the Local GPU panel
+```
+
+`bin/pr-reviewer-local` starts the JVM through TornadoVM (`@$TORNADOVM_HOME/tornado-argfile`) with the `local`
+profile. The profile selects `--provider jitllm` and the local decision model, and lowers the diff and debate
+limits so that a review fits a laptop GPU.
+
+In the web interface a jitllm review shows a **Local GPU** panel:
+- the device, the TornadoVM version, the models and the execution path jitllm chose;
+- each model call with its tokens, time and tok/s, a sparkline, and the running totals.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `JITLLM_MODEL` | required | GGUF model of every tier without its own |
+| `JITLLM_ECONOMY_MODEL`, `JITLLM_STANDARD_MODEL`, `JITLLM_PREMIUM_MODEL` | `JITLLM_MODEL` | a tier's own model, as Haiku, Sonnet and Opus are for Anthropic |
+| `JITLLM_THINK` | `true` | whether the models think before answering; `false` is about 3× faster |
+| `JITLLM_PREMIUM_THINK` | `false` | the same for the premium tier |
+| `JITLLM_CONTEXT` | `32768` | context window, which sizes the KV cache on the GPU |
+| `JITLLM_GPU_MEMORY`, `JITLLM_HEAP` | `26GB`, `8g` | TornadoVM device memory budget, JVM heap |
+| `SYSTEM_ONE_BASE_URL` | `http://127.0.0.1:8090` | the decision server |
+
+Measured on an Apple M3 Pro (36 GB) for langchain4j/langchain4j#7163, end to end:
+- Qwen3-4B with `JITLLM_THINK=false`: about **2 minutes**;
+- Qwen3-4B with thinking: about 6 minutes;
+- with Qwen3.8-27B escalations: about 9 minutes.
+
+Generation speed is bound by memory bandwidth: Qwen3-4B Q8_0 decodes at 29 tok/s, Qwen3.8-27B Q4_0 at 7.7 tok/s.
+On M1–M3 the launcher keeps jitllm's own Metal kernels, because MLX needs an M4
+([beehive-lab/jitllm#277](https://github.com/beehive-lab/jitllm/pull/277)). The native-image decision server needs
+[beehive-lab/jitllm#278](https://github.com/beehive-lab/jitllm/pull/278); `demo/decision-server.sh build` merges both
+until a jitllm release has them.
+
+Measurements, design notes and what is pending are in [demo/README-local.md](demo/README-local.md).
