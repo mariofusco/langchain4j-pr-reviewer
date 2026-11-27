@@ -15,19 +15,19 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <!-- Quarkus core BOM: quarkus-langchain4j 1.15.0.CR1 is built against Quarkus 3.40.0 -->
-        <quarkus.version>3.40.0</quarkus.version>
-        <!-- brings langchain4j 1.21.0 and the beta modules (agentic, agentic-patterns, typesafe) at 1.21.0-beta31 -->
-        <quarkus-langchain4j.version>1.15.0.CR1</quarkus-langchain4j.version>
+        <!-- Quarkus core BOM: quarkus-langchain4j 2.0.0.CR1 is built against Quarkus 4.0 -->
+        <quarkus.version>4.0.1</quarkus.version>
+        <!-- brings langchain4j 1.24.0 and the beta modules (agentic, agentic-patterns, typesafe) at 1.24.0-beta34 -->
+        <quarkus-langchain4j.version>2.0.0.CR1</quarkus-langchain4j.version>
         <quarkus-github-api.version>1.330.0</quarkus-github-api.version>
 
         <htmx.version>2.0.11</htmx.version>
         <htmx-ext-sse.version>2.2.4</htmx-ext-sse.version>
-        <commonmark.version>0.30.1</commonmark.version>
+        <commonmark.version>0.33.0</commonmark.version>
         <assertj.version>3.27.7</assertj.version>
 
         <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
-        <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
+        <maven-surefire-plugin.version>3.6.1</maven-surefire-plugin.version>
     </properties>
 
     <dependencyManagement>
